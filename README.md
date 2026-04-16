@@ -45,4 +45,6 @@ Submission files are written to `outputs/submissions/`.
 
 - `data/` is intentionally ignored by Git.
 - Generated checkpoints and submissions are ignored by Git, while the folder structure stays versioned with `.gitkeep`.
-- The current refactor keeps the existing model architecture and training logic in `src/` unchanged.
+- Training and dataset interfaces stay unchanged: models still use `forward(camera, history)` and return `(batch_size, 60, 3)`.
+- `src/model.py` keeps the original `DrivingPlanner` baseline and adds `DrivingPlannerModelA` as a first stronger variant.
+- For clean comparisons, `src/model.py` also exposes `build_model("baseline")` and `build_model("model_a")`.
