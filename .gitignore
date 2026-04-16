@@ -8,9 +8,12 @@ __pycache__/
 
 
 
-# folder
+# Project folders
 data/
-outputs/
+outputs/checkpoints/*
+!outputs/checkpoints/.gitkeep
+outputs/submissions/*
+!outputs/submissions/.gitkeep
 
 
 # Distribution / packaging
@@ -83,7 +86,7 @@ docs/_build/
 target/
 
 # Jupyter Notebook
-.ipynb_checkpoints
+.ipynb_checkpoints/
 
 # IPython
 profile_default/
@@ -144,7 +147,7 @@ celerybeat.pid
 # Environments
 .env
 .envrc
-.venv
+.venv/
 env/
 venv/
 ENV/
@@ -207,6 +210,10 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+
+# OS files
+Thumbs.db
+.DS_Store
 
 # Marimo
 marimo/_static/
