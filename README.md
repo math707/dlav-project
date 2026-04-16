@@ -1,58 +1,241 @@
-# DLAV Project
+﻿# DLAV Project
 
-End-to-end planner for autonomous driving.
+End-to-end planner for the DLAV course project. The repository is organized so that:
 
-## Project Structure
+- the notebook stays the main entry point for running experiments,
+- the core logic lives in `src/`,
+- the workflow remains easy to use in Google Colab,
+- run artifacts are saved in a predictable way for comparison and submission.
+
+## Repository Structure
 
 ```text
 dlav-project/
-├── notebooks/
-│   └── DLAV_Phase1.ipynb
-├── src/
-│   ├── dataset.py
-│   ├── logger.py
-│   ├── model.py
-│   └── train.py
-├── outputs/
-│   ├── checkpoints/
-│   └── submissions/
-├── data/                 # local only, not tracked by Git
-├── .gitignore
-└── README.md
+|-- notebooks/
+|   `-- DLAV_Phase1.ipynb
+|-- src/
+|   |-- __init__.py
+|   |-- data_utils.py
+|   |-- dataset.py
+|   |-- logger.py
+|   |-- model.py
+|   |-- project_setup.py
+|   |-- run_utils.py
+|   |-- submission.py
+|   |-- train.py
+|   `-- training_setup.py
+|-- outputs/
+|   |-- checkpoints/
+|   |-- runs/
+|   `-- submissions/
+|-- data/                     # local / Colab data, not tracked by git
+|-- requirements.txt
+|-- README.md
+`-- project_description.pdf
 ```
 
-Runtime additions not shown in the tree above:
+## What Lives Where
 
-- `src/run_utils.py` centralizes run directory creation and artifact tracking.
-- `outputs/runs/` stores timestamped run folders such as `outputs/runs/20260416_113000_baseline/`.
+- `notebooks/DLAV_Phase1.ipynb`
+  Main run notebook. It is intended for environment setup, Colab/Drive setup, experiment configuration, training, inference, and quick result inspection.
+- `src/model.py`
+  Model definitions. It keeps the original baseline and the improved `Model A`, plus `build_model(...)` for easy switching.
+- `src/dataset.py`
+  Dataset loading logic.
+- `src/train.py`
+  Training loop and validation metrics.
+- `src/training_setup.py`
+  Optimizer and scheduler construction.
+- `src/submission.py`
+  Prediction and submission CSV generation.
+- `src/run_utils.py`
+  Run directory creation, metrics saving, summaries, and artifact syncing.
+- `src/project_setup.py`
+  Project root detection and Colab / Google Drive helpers.
+- `src/data_utils.py`
+  Dataset download, extraction, and file discovery helpers.
+- `outputs/runs/`
+  Timestamped run folders with checkpoints, metrics, logs, and submissions.
 
-## Data Layout
+## Main Workflow
 
-The notebook expects the following directories inside `data/`:
+The main workflow is:
 
-- `data/train/`
-- `data/val/`
-- `data/test_public/`
+1. Open `notebooks/DLAV_Phase1.ipynb`.
+2. Edit the experiment parameters at the top of the notebook.
+3. Run the notebook from top to bottom.
+4. Inspect the generated run folder in `outputs/runs/`.
 
-If they are missing, `notebooks/DLAV_Phase1.ipynb` can download and extract the archives into `data/`.
+The notebook is intentionally run-oriented. Reusable logic has been moved into `src/` so the notebook stays easier to read and easier for a TA or assistant to follow.
 
-## Workflow
+## Notebook Parameters
 
-There is a single source of truth for experimentation: `notebooks/DLAV_Phase1.ipynb`.
+The first code cell exposes the main run parameters directly, without a heavy config system. The most important ones are:
 
-- In local VS Code, open the notebook from this repository and run it from top to bottom.
-- In Google Colab, open the same notebook from GitHub. The setup cells detect Colab, clone the repository into `/content/dlav-project` if needed, install only the missing dependency required for dataset download, and then use the files from the cloned repo.
+- `RUN_NAME`
+- `MODEL_NAME`
+- `BATCH_SIZE`
+- `NUM_EPOCHS`
+- `LEARNING_RATE_NAME`
+- `LEARNING_RATE`
+- `WEIGHT_DECAY`
+- `USE_LR_SCHEDULER`
+- `SCHEDULER_NAME`
+- `RELOAD_BEST_CHECKPOINT_FOR_INFERENCE`
+- `DOWNLOAD_DATA_IF_MISSING`
+- `SYNC_RUN_TO_DRIVE`
 
-Each notebook execution creates a primary run folder under `outputs/runs/<timestamp>_<run_name>/`.
+This makes it easy to compare runs while keeping the workflow simple.
 
-- The run folder stores `model.pth`, `submission_phase1.csv`, `metrics.json`, `summary.txt`, and `run.log` when available.
-- For backward compatibility, the notebook also keeps historical copies in `outputs/checkpoints/phase1_model.pth` and `outputs/submissions/submission_phase1.csv`.
-- In Google Colab, runs are first written to `/content/dlav-project/outputs/runs/`. If Google Drive is already mounted, the notebook also copies the completed run folder to `/content/drive/MyDrive/dlav-project-runs/`.
+## Running In Google Colab
 
-## Notes
+Colab is the recommended setup for this project.
 
-- `data/` is intentionally ignored by Git.
-- Generated run artifacts, checkpoints, and submissions are ignored by Git, while the folder structure stays versioned with `.gitkeep`.
-- Training and dataset interfaces stay unchanged: models still use `forward(camera, history)` and return `(batch_size, 60, 3)`.
-- `src/model.py` keeps the original `DrivingPlanner` baseline and adds `DrivingPlannerModelA` as a first stronger variant.
-- For clean comparisons, `src/model.py` also exposes `build_model("baseline")` and `build_model("model_a")`.
+### What the notebook does in Colab
+
+- Detects that it is running in Colab.
+- Clones or updates the repository into `/content/dlav-project` when needed.
+- Optionally mounts Google Drive.
+- Uses Google Drive as a backup location for completed run folders when available.
+- Downloads the dataset automatically if it is missing and `DOWNLOAD_DATA_IF_MISSING = True`.
+
+### Typical Colab usage
+
+1. Open `notebooks/DLAV_Phase1.ipynb` in Colab.
+2. Set the editable parameters in the first code cell.
+3. Keep `MOUNT_DRIVE_IN_COLAB = True` if you want run artifacts copied to Drive.
+4. Run all cells.
+
+By default, completed runs can be backed up to:
+
+`/content/drive/MyDrive/dlav-project-runs/`
+
+This is useful because Colab VM storage is temporary.
+
+## Running Locally
+
+If you want to run locally:
+
+1. Clone the repository.
+2. Install dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+3. Make sure the dataset is available under:
+   - `data/train/`
+   - `data/val/`
+   - `data/test_public/`
+4. Open `notebooks/DLAV_Phase1.ipynb` from inside the repository.
+5. Run the notebook from top to bottom.
+
+The notebook detects the project root automatically when opened from the repository.
+
+## Models
+
+The project keeps multiple model variants in the same repository for clean comparisons.
+
+- `DrivingPlanner`
+  Original baseline architecture from the starter notebook.
+- `DrivingPlannerModelA`
+  First improved model variant with a stronger CNN encoder, compact history MLP, and better fusion head.
+
+Use the notebook parameter:
+
+```python
+MODEL_NAME = "baseline"   # or "model_a"
+```
+
+Internally, model creation goes through:
+
+```python
+model = build_model(MODEL_NAME)
+```
+
+This keeps comparisons simple and avoids overwriting old architectures.
+
+## Training, Checkpoints, And Outputs
+
+Each execution creates a run directory:
+
+```text
+outputs/runs/<timestamp>_<run_name>/
+```
+
+A run folder typically contains:
+
+- `model.pth`
+  Best checkpoint of the run, selected by validation ADE.
+- `model_last.pth`
+  Last-epoch checkpoint.
+- `metrics.json`
+  Structured run metadata and recorded metrics.
+- `summary.txt`
+  Human-readable run summary.
+- `run.log`
+  Training log.
+- `submission_phase1.csv`
+  Generated submission file.
+
+For backward compatibility, the notebook also writes:
+
+- `outputs/checkpoints/phase1_model.pth`
+- `outputs/submissions/submission_phase1.csv`
+
+These are legacy convenience copies. The main source of truth is the timestamped run folder.
+
+## Best Checkpoint Behavior
+
+The training setup now tracks the best validation ADE during training.
+
+- The best checkpoint is saved to `model.pth`.
+- The last model is saved separately to `model_last.pth`.
+- By default, the notebook reloads the best checkpoint before qualitative evaluation and submission generation.
+
+This behavior is controlled by:
+
+```python
+RELOAD_BEST_CHECKPOINT_FOR_INFERENCE = True
+```
+
+So, by default, the submission CSV is generated from the best checkpoint of the run, not just the last epoch.
+
+## Inference And Submission Generation
+
+Submission generation is handled from the notebook but implemented through helpers in `src/submission.py`.
+
+The output CSV is saved to:
+
+```text
+outputs/runs/<timestamp>_<run_name>/submission_phase1.csv
+```
+
+and also copied to:
+
+```text
+outputs/submissions/submission_phase1.csv
+```
+
+The expected output format remains unchanged.
+
+## Reproducibility And Comparison
+
+The repository is organized to make experiments easier to compare:
+
+- baseline and improved models live side by side,
+- key hyperparameters are visible at the top of the notebook,
+- each run gets its own timestamped folder,
+- metrics, logs, and checkpoints are grouped together,
+- the best validation checkpoint is preserved automatically.
+
+This is meant to keep the project easy to inspect for course staff while still being practical for ongoing experimentation.
+
+## Git And Submission Notes
+
+- `data/` is ignored by git.
+- generated checkpoints, submissions, and run artifacts are ignored by git.
+- folder placeholders are kept with `.gitkeep`.
+- the notebook and `src/` code are the files that matter most for the submission.
+
+Before pushing, make sure the repository contains code and documentation, not local datasets or temporary outputs.

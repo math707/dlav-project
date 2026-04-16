@@ -127,6 +127,54 @@ def build_metrics_payload(run_context: RunContext, metrics: dict[str, Any] | Non
     return payload
 
 
+def build_initial_run_metrics(
+    run_context: RunContext,
+    *,
+    model_name: str,
+    device: str,
+    batch_size: int,
+    learning_rate_name: str,
+    learning_rate_options: dict[str, Any],
+    learning_rate: float,
+    weight_decay: float,
+    scheduler_enabled: bool,
+    scheduler_name: str | None,
+    scheduler_metric: str | None,
+    num_epochs: int,
+    legacy_checkpoint_path: str | Path,
+    legacy_submission_path: str | Path,
+) -> dict[str, Any]:
+    last_checkpoint_path = run_context.run_dir / 'model_last.pth'
+    return {
+        'model_name': model_name,
+        'device': device,
+        'batch_size': batch_size,
+        'learning_rate_name': learning_rate_name,
+        'learning_rate_options': learning_rate_options,
+        'learning_rate': learning_rate,
+        'weight_decay': weight_decay,
+        'scheduler_enabled': scheduler_enabled,
+        'scheduler_name': scheduler_name if scheduler_enabled else None,
+        'scheduler_metric': scheduler_metric if scheduler_enabled else None,
+        'num_epochs': num_epochs,
+        'train_loss_final': None,
+        'val_loss_final': None,
+        'val_ADE_final': None,
+        'val_FDE_final': None,
+        'best_val_ADE': None,
+        'best_val_ADE_epoch': None,
+        'best_checkpoint_path': str(run_context.checkpoint_path),
+        'last_checkpoint_path': str(last_checkpoint_path),
+        'checkpoint_path': str(run_context.checkpoint_path),
+        'inference_checkpoint_path': str(run_context.checkpoint_path),
+        'submission_path': None,
+        'drive_backup_enabled': run_context.drive_backup_enabled,
+        'drive_backup_path': str(run_context.drive_run_dir) if run_context.drive_run_dir else None,
+        'legacy_checkpoint_path': str(legacy_checkpoint_path),
+        'legacy_submission_path': str(legacy_submission_path),
+    }
+
+
 def save_metrics(run_context: RunContext, metrics: dict[str, Any] | None = None) -> dict[str, Any]:
     payload = build_metrics_payload(run_context, metrics)
     run_context.metrics_path.write_text(json.dumps(payload, indent=2), encoding='utf-8')
@@ -156,6 +204,7 @@ def write_summary(run_context: RunContext, metrics: dict[str, Any] | None = None
         f"best_val_ADE_epoch: {payload.get('best_val_ADE_epoch')}",
         f"best_checkpoint_path: {payload.get('best_checkpoint_path')}",
         f"last_checkpoint_path: {payload.get('last_checkpoint_path')}",
+        f"inference_checkpoint_path: {payload.get('inference_checkpoint_path')}",
         f"checkpoint_path: {payload.get('checkpoint_path')}",
         f"submission_path: {payload.get('submission_path')}",
     ]

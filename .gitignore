@@ -16,6 +16,7 @@ outputs/submissions/*
 !outputs/submissions/.gitkeep
 outputs/runs/*
 !outputs/runs/.gitkeep
+outputs/tmp_*
 
 
 # Distribution / packaging
