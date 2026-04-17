@@ -7,6 +7,23 @@ End-to-end planner for the DLAV course project. The repository is organized so t
 - the workflow remains easy to use in Google Colab,
 - run artifacts are saved in a predictable way for comparison and submission.
 
+## Quick Start
+
+1. Open `notebooks/DLAV_Phase1.ipynb` from this repository, preferably in Google Colab.
+2. Edit the first code cell at the top of the notebook to choose the run parameters such as `RUN_NAME`, `MODEL_NAME`, `BATCH_SIZE`, `NUM_EPOCHS`, `LEARNING_RATE_NAME`, and `WEIGHT_DECAY`.
+3. Run all notebook cells from top to bottom.
+4. Check the run folder created under `outputs/runs/<timestamp>_<run_name>/`.
+5. The main artifacts are saved there: `model.pth` for the best checkpoint, `model_last.pth` for the last epoch, and `submission_phase1.csv` for the generated submission.
+
+## Expected First-Time Workflow
+
+For a TA or assistant landing on the repository for the first time, the recommended path is:
+
+1. Open `notebooks/DLAV_Phase1.ipynb` in Colab.
+2. Read the short notebook introduction and adjust the parameters in the top configuration cell.
+3. Run all cells once without changing the project code in `src/`.
+4. Inspect `outputs/runs/<timestamp>_<run_name>/` for the checkpoint, metrics, logs, and submission file.
+
 ## Repository Structure
 
 ```text
@@ -59,12 +76,7 @@ dlav-project/
 
 ## Main Workflow
 
-The main workflow is:
-
-1. Open `notebooks/DLAV_Phase1.ipynb`.
-2. Edit the experiment parameters at the top of the notebook.
-3. Run the notebook from top to bottom.
-4. Inspect the generated run folder in `outputs/runs/`.
+The recommended workflow is to use `notebooks/DLAV_Phase1.ipynb` as the single entry point, edit the parameter cell at the top, run all cells, and then inspect the generated run folder under `outputs/runs/`.
 
 The notebook is intentionally run-oriented. Reusable logic has been moved into `src/` so the notebook stays easier to read and easier for a TA or assistant to follow.
 
@@ -203,7 +215,7 @@ So, by default, the submission CSV is generated from the best checkpoint of the 
 
 ## Inference And Submission Generation
 
-Submission generation is handled from the notebook but implemented through helpers in `src/submission.py`.
+Inference and submission generation are launched from the notebook and implemented through helpers in `src/submission.py`.
 
 The output CSV is saved to:
 
