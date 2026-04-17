@@ -153,6 +153,19 @@ The project keeps multiple model variants in the same repository for clean compa
 - `DrivingPlannerModelA`
   First improved model variant with a stronger CNN encoder, compact history MLP, and better fusion head.
 
+### Model Architecture
+
+The model takes two inputs:
+
+- a camera image tensor,
+- a motion/history tensor describing the recent ego-vehicle trajectory.
+
+The baseline model uses a very shallow CNN to extract image features, flattens the history tensor, concatenates both branches, and maps them directly to the future trajectory with a single linear decoder.
+
+`Model A` keeps the same overall input/output structure but improves the internal feature extraction. It uses a stronger CNN visual encoder with progressive downsampling, then applies global average pooling to produce a compact visual embedding. The history branch is encoded with a small MLP, the two embeddings are fused with another small MLP, and a final prediction head outputs the trajectory.
+
+Both models return a predicted future trajectory with shape `(batch_size, 60, 3)`. Because `Model A` preserves the same `forward(camera, history)` interface and output format as the baseline, comparisons between variants remain clean and direct.
+
 Use the notebook parameter:
 
 ```python
