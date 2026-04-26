@@ -154,6 +154,8 @@ The project keeps multiple model variants in the same repository for clean compa
   First improved model variant with a stronger CNN encoder, compact history MLP, and better fusion head.
 - `DrivingPlannerModelB`
   Comparison-friendly next-step variant that replaces the custom visual encoder with a pretrained ResNet18 backbone, keeps a simple history MLP, and predicts the same `(batch_size, 60, 3)` trajectory output.
+- `DrivingPlannerModelBV2`
+  Follow-up ResNet18 variant with the same interface, explicit ImageNet-compatible preprocessing, stricter pretrained-weight loading, and training-friendly defaults for fine-tuning.
 
 ### Model Architecture
 
@@ -171,7 +173,7 @@ All models return a predicted future trajectory with shape `(batch_size, 60, 3)`
 Use the notebook parameter:
 
 ```python
-MODEL_NAME = "baseline"   # or "model_a" or "model_b"
+MODEL_NAME = "baseline"   # or "model_a", "model_b", or "model_b_v2"
 ```
 
 Internally, model creation goes through:
@@ -193,6 +195,8 @@ optimizer = build_optimizer(
 )
 ```
 
+`Model B V2` keeps the same optimizer call, but defaults to a `0.1x` backbone learning-rate scale when no explicit backbone LR override is provided.
+
 Optional early stopping based on validation ADE can be enabled directly in the training call:
 
 ```python
@@ -208,6 +212,12 @@ TRAINING_SUMMARY = train(
     early_stopping_patience=6,
     early_stopping_min_delta=1e-3,
 )
+```
+
+A short frozen-backbone warmup is also supported for the ResNet18 variants:
+
+```python
+BACKBONE_WARMUP_EPOCHS = 2
 ```
 
 ## Training, Checkpoints, And Outputs

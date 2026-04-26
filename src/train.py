@@ -19,6 +19,29 @@ def _format_learning_rate_display(optimizer):
     return ", ".join(f"{name.replace('_learning_rate', '')}={value:.6g}" for name, value in learning_rates.items())
 
 
+def _supports_backbone_warmup(model, optimizer):
+    has_model_hooks = hasattr(model, 'freeze_backbone') and hasattr(model, 'unfreeze_backbone')
+    has_backbone_group = any(group.get('name') == 'backbone' for group in optimizer.param_groups)
+    return has_model_hooks and has_backbone_group
+
+
+def _apply_backbone_warmup_state(model, epoch: int, backbone_warmup_epochs: int):
+    if backbone_warmup_epochs <= 0:
+        return None
+
+    should_freeze = epoch < backbone_warmup_epochs
+    backbone_is_frozen = getattr(model, 'backbone_is_frozen', False)
+
+    if should_freeze and not backbone_is_frozen:
+        model.freeze_backbone()
+        return 'frozen'
+    if not should_freeze and backbone_is_frozen:
+        model.unfreeze_backbone()
+        return 'unfrozen'
+
+    return None
+
+
 def train(
     model,
     train_loader,
@@ -31,6 +54,7 @@ def train(
     best_checkpoint_path=None,
     early_stopping_patience=None,
     early_stopping_min_delta=0.0,
+    backbone_warmup_epochs=0,
 ):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = model.to(device)
@@ -39,6 +63,7 @@ def train(
     epoch_history = []
     best_metrics = None
     early_stopping_enabled = early_stopping_patience is not None and early_stopping_patience > 0
+    backbone_warmup_enabled = backbone_warmup_epochs > 0
     best_early_stopping_ade = None
     early_stopping_bad_epochs = 0
     stopped_early = False
@@ -46,7 +71,19 @@ def train(
     if best_checkpoint_path is not None:
         best_checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
 
+    if backbone_warmup_enabled and not _supports_backbone_warmup(model, optimizer):
+        raise ValueError(
+            "backbone_warmup_epochs requires a model with freeze_backbone()/unfreeze_backbone() "
+            "and an optimizer with a named 'backbone' parameter group."
+        )
+
     for epoch in range(num_epochs):
+        backbone_transition = _apply_backbone_warmup_state(model, epoch, backbone_warmup_epochs)
+        if backbone_transition == 'frozen':
+            print(f"Backbone warmup: freezing ResNet18 backbone for epoch {epoch+1}/{num_epochs}.")
+        elif backbone_transition == 'unfrozen':
+            print(f"Backbone warmup: unfreezing ResNet18 backbone at epoch {epoch+1}/{num_epochs}.")
+
         # Training
         model.train()
         train_loss = 0
@@ -88,6 +125,7 @@ def train(
             'val_loss': val_loss / len(val_loader),
             'val_ADE': float(np.mean(ade_all)),
             'val_FDE': float(np.mean(fde_all)),
+            'backbone_frozen': bool(getattr(model, 'backbone_is_frozen', False)),
         }
 
         if best_metrics is None or epoch_metrics['val_ADE'] < best_metrics['val_ADE']:
@@ -165,6 +203,7 @@ def train(
         early_stopping_patience=early_stopping_patience,
         early_stopping_min_delta=early_stopping_min_delta,
         early_stopped=stopped_early,
+        backbone_warmup_epochs=backbone_warmup_epochs,
     )
     return {
         'epochs_completed': len(epoch_history),
@@ -175,4 +214,6 @@ def train(
         'final_learning_rates': _optimizer_learning_rates(optimizer),
         'early_stopping_enabled': early_stopping_enabled,
         'early_stopped': stopped_early,
+        'backbone_warmup_epochs': backbone_warmup_epochs,
+        'backbone_warmup_enabled': backbone_warmup_enabled,
     }

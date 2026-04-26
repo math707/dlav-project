@@ -22,7 +22,7 @@ def build_optimizer(
     if use_backbone_specific_lr:
         raise ValueError(
             "This model does not expose separate backbone parameter groups. "
-            "Use the backbone-specific learning-rate options with model_b."
+            "Use the backbone-specific learning-rate options with model_b or model_b_v2."
         )
 
     return optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)

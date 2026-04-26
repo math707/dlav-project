@@ -17,6 +17,8 @@ outputs/submissions/*
 outputs/runs/*
 !outputs/runs/.gitkeep
 outputs/tmp_*
+outputs/torch_cache/
+outputs/channel_order_audit.png
 
 
 # Distribution / packaging
