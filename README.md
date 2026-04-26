@@ -152,6 +152,8 @@ The project keeps multiple model variants in the same repository for clean compa
   Original baseline architecture from the starter notebook.
 - `DrivingPlannerModelA`
   First improved model variant with a stronger CNN encoder, compact history MLP, and better fusion head.
+- `DrivingPlannerModelB`
+  Comparison-friendly next-step variant that replaces the custom visual encoder with a pretrained ResNet18 backbone, keeps a simple history MLP, and predicts the same `(batch_size, 60, 3)` trajectory output.
 
 ### Model Architecture
 
@@ -164,12 +166,12 @@ The baseline model uses a very shallow CNN to extract image features, flattens t
 
 `Model A` keeps the same overall input/output structure but improves the internal feature extraction. It uses a stronger CNN visual encoder with progressive downsampling, then applies global average pooling to produce a compact visual embedding. The history branch is encoded with a small MLP, the two embeddings are fused with another small MLP, and a final prediction head outputs the trajectory.
 
-Both models return a predicted future trajectory with shape `(batch_size, 60, 3)`. Because `Model A` preserves the same `forward(camera, history)` interface and output format as the baseline, comparisons between variants remain clean and direct.
+All models return a predicted future trajectory with shape `(batch_size, 60, 3)`. Because `Model A` and `Model B` preserve the same `forward(camera, history)` interface and output format as the baseline, comparisons between variants remain clean and direct.
 
 Use the notebook parameter:
 
 ```python
-MODEL_NAME = "baseline"   # or "model_a"
+MODEL_NAME = "baseline"   # or "model_a" or "model_b"
 ```
 
 Internally, model creation goes through:
@@ -179,6 +181,34 @@ model = build_model(MODEL_NAME)
 ```
 
 This keeps comparisons simple and avoids overwriting old architectures.
+
+`Model B` also supports a smaller learning rate on the pretrained backbone through the existing optimizer helper:
+
+```python
+optimizer = build_optimizer(
+    model,
+    learning_rate=3e-4,
+    weight_decay=1e-4,
+    backbone_lr_scale=0.1,
+)
+```
+
+Optional early stopping based on validation ADE can be enabled directly in the training call:
+
+```python
+TRAINING_SUMMARY = train(
+    model,
+    train_loader,
+    val_loader,
+    optimizer,
+    logger,
+    scheduler=scheduler,
+    scheduler_metric="val_ADE",
+    best_checkpoint_path=RUN_CONTEXT.checkpoint_path,
+    early_stopping_patience=6,
+    early_stopping_min_delta=1e-3,
+)
+```
 
 ## Training, Checkpoints, And Outputs
 

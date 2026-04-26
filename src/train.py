@@ -4,6 +4,21 @@ import torch.nn as nn
 from pathlib import Path
 
 
+def _optimizer_learning_rates(optimizer):
+    learning_rates = {}
+    for index, group in enumerate(optimizer.param_groups):
+        group_name = group.get('name', f'group_{index}')
+        learning_rates[f'{group_name}_learning_rate'] = group['lr']
+    return learning_rates
+
+
+def _format_learning_rate_display(optimizer):
+    learning_rates = _optimizer_learning_rates(optimizer)
+    if len(learning_rates) == 1:
+        return f"{optimizer.param_groups[0]['lr']:.6g}"
+    return ", ".join(f"{name.replace('_learning_rate', '')}={value:.6g}" for name, value in learning_rates.items())
+
+
 def train(
     model,
     train_loader,
@@ -14,6 +29,8 @@ def train(
     scheduler=None,
     scheduler_metric='val_ADE',
     best_checkpoint_path=None,
+    early_stopping_patience=None,
+    early_stopping_min_delta=0.0,
 ):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = model.to(device)
@@ -21,6 +38,10 @@ def train(
     criterion = nn.MSELoss()
     epoch_history = []
     best_metrics = None
+    early_stopping_enabled = early_stopping_patience is not None and early_stopping_patience > 0
+    best_early_stopping_ade = None
+    early_stopping_bad_epochs = 0
+    stopped_early = False
     best_checkpoint_path = Path(best_checkpoint_path) if best_checkpoint_path is not None else None
     if best_checkpoint_path is not None:
         best_checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
@@ -81,12 +102,25 @@ def train(
             else:
                 scheduler.step()
 
+        if early_stopping_enabled:
+            if (
+                best_early_stopping_ade is None
+                or epoch_metrics['val_ADE'] < best_early_stopping_ade - early_stopping_min_delta
+            ):
+                best_early_stopping_ade = epoch_metrics['val_ADE']
+                early_stopping_bad_epochs = 0
+            else:
+                early_stopping_bad_epochs += 1
+            epoch_metrics['early_stopping_bad_epochs'] = early_stopping_bad_epochs
+
         current_learning_rate = optimizer.param_groups[0]['lr']
+        learning_rate_metrics = _optimizer_learning_rates(optimizer)
         epoch_history.append(epoch_metrics)
         logger.log(
             step=epoch + 1,
             **epoch_metrics,
             learning_rate=current_learning_rate,
+            **learning_rate_metrics,
             best_val_ADE=best_metrics['val_ADE'],
             best_val_ADE_epoch=best_metrics['epoch'],
         )
@@ -97,9 +131,26 @@ def train(
             f"Val Loss: {epoch_metrics['val_loss']:.4f} | "
             f"ADE: {epoch_metrics['val_ADE']:.4f} | "
             f"FDE: {epoch_metrics['val_FDE']:.4f} | "
-            f"LR: {current_learning_rate:.6g} | "
+            f"LR: {_format_learning_rate_display(optimizer)} | "
             f"Best ADE: {best_metrics['val_ADE']:.4f} (epoch {best_metrics['epoch']})"
         )
+
+        if early_stopping_enabled and early_stopping_bad_epochs >= early_stopping_patience:
+            stopped_early = True
+            print(
+                f"Early stopping triggered at epoch {epoch+1}: "
+                f"validation ADE did not improve by at least {early_stopping_min_delta:.6g} "
+                f"for {early_stopping_patience} consecutive epochs."
+            )
+            logger.log(
+                early_stopped=True,
+                early_stopping_epoch=epoch + 1,
+                early_stopping_patience=early_stopping_patience,
+                early_stopping_min_delta=early_stopping_min_delta,
+                best_val_ADE=best_metrics['val_ADE'],
+                best_val_ADE_epoch=best_metrics['epoch'],
+            )
+            break
 
     final_metrics = epoch_history[-1] if epoch_history else {}
     if best_metrics is None:
@@ -110,6 +161,10 @@ def train(
         best_val_ADE=best_metrics.get('val_ADE'),
         best_val_ADE_epoch=best_metrics.get('epoch'),
         best_checkpoint_path=best_metrics.get('checkpoint_path'),
+        early_stopping_enabled=early_stopping_enabled,
+        early_stopping_patience=early_stopping_patience,
+        early_stopping_min_delta=early_stopping_min_delta,
+        early_stopped=stopped_early,
     )
     return {
         'epochs_completed': len(epoch_history),
@@ -117,4 +172,7 @@ def train(
         'history': epoch_history,
         'best': best_metrics,
         'final_learning_rate': optimizer.param_groups[0]['lr'],
+        'final_learning_rates': _optimizer_learning_rates(optimizer),
+        'early_stopping_enabled': early_stopping_enabled,
+        'early_stopped': stopped_early,
     }
