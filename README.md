@@ -7,10 +7,12 @@ End-to-end planner for the DLAV course project. The repository is organized so t
 - the workflow remains easy to use in Google Colab,
 - run artifacts are saved in a predictable way for comparison and submission.
 
+The current recommended experiment setup uses `model_b_v2`, a pretrained ResNet18-based planner with a small backbone learning rate, a short backbone warmup, scheduler support, and early stopping.
+
 ## Quick Start
 
 1. Open `notebooks/DLAV_Phase1.ipynb` from this repository, preferably in Google Colab.
-2. Edit the first code cell at the top of the notebook to choose the run parameters such as `RUN_NAME`, `MODEL_NAME`, `BATCH_SIZE`, `NUM_EPOCHS`, `LEARNING_RATE_NAME`, and `WEIGHT_DECAY`.
+2. Edit the first code cell at the top of the notebook to choose the run parameters. The notebook defaults already point to the current recommended `model_b_v2` setup.
 3. Run all notebook cells from top to bottom.
 4. Check the run folder created under `outputs/runs/<timestamp>_<run_name>/`.
 5. The main artifacts are saved there: `model.pth` for the best checkpoint, `model_last.pth` for the last epoch, and `submission_phase1.csv` for the generated submission.
@@ -20,7 +22,7 @@ End-to-end planner for the DLAV course project. The repository is organized so t
 For a TA or assistant landing on the repository for the first time, the recommended path is:
 
 1. Open `notebooks/DLAV_Phase1.ipynb` in Colab.
-2. Read the short notebook introduction and adjust the parameters in the top configuration cell.
+2. Read the short notebook introduction and adjust the parameters in the top configuration cell. If you just want the current recommended run, the defaults are a good starting point.
 3. Run all cells once without changing the project code in `src/`.
 4. Inspect `outputs/runs/<timestamp>_<run_name>/` for the checkpoint, metrics, logs, and submission file.
 
@@ -56,13 +58,13 @@ dlav-project/
 - `notebooks/DLAV_Phase1.ipynb`
   Main run notebook. It is intended for environment setup, Colab/Drive setup, experiment configuration, training, inference, and quick result inspection.
 - `src/model.py`
-  Model definitions. It keeps the original baseline and the improved `Model A`, plus `build_model(...)` for easy switching.
+  Model definitions and the `build_model(...)` registry. It contains `baseline`, `model_a`, `model_b`, and `model_b_v2`.
 - `src/dataset.py`
   Dataset loading logic.
 - `src/train.py`
-  Training loop and validation metrics.
+  Training loop, validation metrics, best-checkpoint tracking, optional early stopping, and optional backbone warmup.
 - `src/training_setup.py`
-  Optimizer and scheduler construction.
+  Optimizer and scheduler construction, including split learning rates for pretrained ResNet18 variants.
 - `src/submission.py`
   Prediction and submission CSV generation.
 - `src/run_utils.py`
@@ -91,13 +93,47 @@ The first code cell exposes the main run parameters directly, without a heavy co
 - `LEARNING_RATE_NAME`
 - `LEARNING_RATE`
 - `WEIGHT_DECAY`
+- `BACKBONE_LEARNING_RATE`
+- `BACKBONE_LR_SCALE`
+- `BACKBONE_WARMUP_EPOCHS`
 - `USE_LR_SCHEDULER`
 - `SCHEDULER_NAME`
+- `SCHEDULER_METRIC`
+- `SCHEDULER_FACTOR`
+- `SCHEDULER_PATIENCE`
+- `SCHEDULER_MIN_LR`
+- `EARLY_STOPPING_PATIENCE`
+- `EARLY_STOPPING_MIN_DELTA`
 - `RELOAD_BEST_CHECKPOINT_FOR_INFERENCE`
 - `DOWNLOAD_DATA_IF_MISSING`
 - `SYNC_RUN_TO_DRIVE`
 
 This makes it easy to compare runs while keeping the workflow simple.
+
+Current recommended configuration:
+
+```python
+MODEL_NAME = "model_b_v2"
+BATCH_SIZE = 32
+NUM_EPOCHS = 10000
+LEARNING_RATE_NAME = "default"
+LEARNING_RATE = 1e-3
+WEIGHT_DECAY = 1e-4
+BACKBONE_LEARNING_RATE = None
+BACKBONE_LR_SCALE = None      # model_b_v2 defaults to 0.1 if left as None
+BACKBONE_WARMUP_EPOCHS = 2
+USE_LR_SCHEDULER = True
+SCHEDULER_NAME = "plateau"
+SCHEDULER_METRIC = "val_ADE"
+SCHEDULER_FACTOR = 0.5
+SCHEDULER_PATIENCE = 6
+SCHEDULER_MIN_LR = 1e-5
+EARLY_STOPPING_PATIENCE = 25
+EARLY_STOPPING_MIN_DELTA = 1e-3
+RELOAD_BEST_CHECKPOINT_FOR_INFERENCE = True
+```
+
+`NUM_EPOCHS = 10000` is used as a ceiling for long runs. In practice, the scheduler and early stopping usually end training much earlier once validation ADE stops improving.
 
 ## Running In Google Colab
 
@@ -153,9 +189,9 @@ The project keeps multiple model variants in the same repository for clean compa
 - `DrivingPlannerModelA`
   First improved model variant with a stronger CNN encoder, compact history MLP, and better fusion head.
 - `DrivingPlannerModelB`
-  Comparison-friendly next-step variant that replaces the custom visual encoder with a pretrained ResNet18 backbone, keeps a simple history MLP, and predicts the same `(batch_size, 60, 3)` trajectory output.
+  First pretrained ResNet18 variant. It keeps the same interface as the earlier models and adds ImageNet-style camera preprocessing inside the model.
 - `DrivingPlannerModelBV2`
-  Follow-up ResNet18 variant with the same interface, explicit ImageNet-compatible preprocessing, stricter pretrained-weight loading, and training-friendly defaults for fine-tuning.
+  Current recommended model. It keeps the `model_b` architecture simple and comparison-friendly, but makes pretrained use safer and fine-tuning cleaner through stricter pretrained-weight loading, a default `0.1x` backbone learning-rate scale, and optional frozen-backbone warmup.
 
 ### Model Architecture
 
@@ -168,12 +204,16 @@ The baseline model uses a very shallow CNN to extract image features, flattens t
 
 `Model A` keeps the same overall input/output structure but improves the internal feature extraction. It uses a stronger CNN visual encoder with progressive downsampling, then applies global average pooling to produce a compact visual embedding. The history branch is encoded with a small MLP, the two embeddings are fused with another small MLP, and a final prediction head outputs the trajectory.
 
-All models return a predicted future trajectory with shape `(batch_size, 60, 3)`. Because `Model A` and `Model B` preserve the same `forward(camera, history)` interface and output format as the baseline, comparisons between variants remain clean and direct.
+`Model B` replaces the custom visual encoder with a pretrained `torchvision` ResNet18 backbone used as a camera feature extractor. It keeps the history branch simple, uses a compact fusion MLP, and still predicts the same trajectory format.
+
+`Model B V2` keeps that same overall architecture, but is the recommended version because it has clearer pretrained input handling and a safer fine-tuning setup for the ResNet18 backbone.
+
+All models return a predicted future trajectory with shape `(batch_size, 60, 3)`. Because every variant preserves the same `forward(camera, history)` interface and output format, comparisons between models stay straightforward.
 
 Use the notebook parameter:
 
 ```python
-MODEL_NAME = "baseline"   # or "model_a", "model_b", or "model_b_v2"
+MODEL_NAME = "model_b_v2"   # current recommended; alternatives: "baseline", "model_a", or "model_b"
 ```
 
 Internally, model creation goes through:
@@ -184,7 +224,7 @@ model = build_model(MODEL_NAME)
 
 This keeps comparisons simple and avoids overwriting old architectures.
 
-`Model B` also supports a smaller learning rate on the pretrained backbone through the existing optimizer helper:
+For the ResNet18 models, the optimizer helper supports using a smaller learning rate on the pretrained backbone than on the newly added head layers:
 
 ```python
 optimizer = build_optimizer(
@@ -209,18 +249,29 @@ TRAINING_SUMMARY = train(
     scheduler=scheduler,
     scheduler_metric="val_ADE",
     best_checkpoint_path=RUN_CONTEXT.checkpoint_path,
-    early_stopping_patience=6,
+    early_stopping_patience=25,
     early_stopping_min_delta=1e-3,
 )
 ```
 
-A short frozen-backbone warmup is also supported for the ResNet18 variants:
+A short frozen-backbone warmup is also supported for the ResNet18 variants. During this warmup, the head learns first while the pretrained backbone stays frozen; after that, the backbone is unfrozen for normal fine-tuning.
 
 ```python
 BACKBONE_WARMUP_EPOCHS = 2
 ```
 
 ## Training, Checkpoints, And Outputs
+
+Training is launched from the notebook. The notebook builds the datasets and dataloaders, creates the model through `build_model(...)`, builds the optimizer and scheduler, and then calls `train(...)` from `src/train.py`.
+
+During training, the loop:
+
+- runs training on the train split,
+- evaluates on the validation split every epoch,
+- tracks validation loss, ADE, and FDE,
+- saves the best checkpoint by validation ADE,
+- optionally applies early stopping based on validation ADE,
+- optionally freezes the ResNet18 backbone for the first `BACKBONE_WARMUP_EPOCHS` epochs before unfreezing it.
 
 Each execution creates a run directory:
 
@@ -252,11 +303,12 @@ These are legacy convenience copies. The main source of truth is the timestamped
 
 ## Best Checkpoint Behavior
 
-The training setup now tracks the best validation ADE during training.
+The training setup tracks the best validation ADE during training.
 
 - The best checkpoint is saved to `model.pth`.
 - The last model is saved separately to `model_last.pth`.
 - By default, the notebook reloads the best checkpoint before qualitative evaluation and submission generation.
+- Early stopping, when enabled, only decides when to stop training; it does not change the fact that `model.pth` is always selected by best validation ADE.
 
 This behavior is controlled by:
 
@@ -269,6 +321,8 @@ So, by default, the submission CSV is generated from the best checkpoint of the 
 ## Inference And Submission Generation
 
 Inference and submission generation are launched from the notebook and implemented through helpers in `src/submission.py`.
+
+In this repository, "inference" means running the trained planner forward without labels. The most important inference pass is on `data/test_public/`, where the model produces the final submission CSV. The notebook also runs downstream qualitative inspection on validation examples after the best checkpoint is optionally reloaded.
 
 The output CSV is saved to:
 
