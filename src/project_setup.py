@@ -5,7 +5,9 @@ import subprocess
 import sys
 
 
-DEFAULT_REPO_URL = 'https://github.com/math707/dlav-project.git'
+# The official GitHub Classroom submission repository is private, so Colab clones may
+# require GitHub authentication or a manually provided local snapshot.
+DEFAULT_REPO_URL = 'https://github.com/vita-student-projects-2026/final-project-math.git'
 DEFAULT_COLAB_PROJECT_DIR = Path('/content/dlav-project')
 DEFAULT_COLAB_DRIVE_ROOT = Path('/content/drive/MyDrive/dlav-project-runs')
 

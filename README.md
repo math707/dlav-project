@@ -7,11 +7,14 @@ End-to-end planner for the DLAV course project. The repository is organized so t
 - the workflow remains easy to use in Google Colab,
 - run artifacts are saved in a predictable way for comparison and submission.
 
+The official submission repository is the private GitHub Classroom repo:
+`https://github.com/vita-student-projects-2026/final-project-math.git`
+
 The current recommended experiment setup uses `model_b_v2`, a pretrained ResNet18-based planner with a small backbone learning rate, a short backbone warmup, scheduler support, and early stopping.
 
 ## Quick Start
 
-1. Open `notebooks/DLAV_Phase1.ipynb` from this repository, preferably in Google Colab.
+1. Clone the private GitHub Classroom repository locally, or open `notebooks/DLAV_Phase1.ipynb` from that repository in Google Colab.
 2. Edit the first code cell at the top of the notebook to choose the run parameters. The notebook defaults already point to the current recommended `model_b_v2` setup.
 3. Run all notebook cells from top to bottom.
 4. Check the run folder created under `outputs/runs/<timestamp>_<run_name>/`.
@@ -21,10 +24,11 @@ The current recommended experiment setup uses `model_b_v2`, a pretrained ResNet1
 
 For a TA or assistant landing on the repository for the first time, the recommended path is:
 
-1. Open `notebooks/DLAV_Phase1.ipynb` in Colab.
-2. Read the short notebook introduction and adjust the parameters in the top configuration cell. If you just want the current recommended run, the defaults are a good starting point.
-3. Run all cells once without changing the project code in `src/`.
-4. Inspect `outputs/runs/<timestamp>_<run_name>/` for the checkpoint, metrics, logs, and submission file.
+1. Clone the private GitHub Classroom repository locally if you want the simplest setup.
+2. Install the requirements and open `notebooks/DLAV_Phase1.ipynb` from inside that local clone.
+3. If you prefer Colab, use the same Classroom repository there, but note that automatic cloning may require GitHub authentication because the repository is private.
+4. Run all cells once without changing the project code in `src/`.
+5. Inspect `outputs/runs/<timestamp>_<run_name>/` for the checkpoint, metrics, logs, and submission file.
 
 ## Repository Structure
 
@@ -137,22 +141,23 @@ RELOAD_BEST_CHECKPOINT_FOR_INFERENCE = True
 
 ## Running In Google Colab
 
-Colab is the recommended setup for this project.
+Colab is supported, but the official submission repository is private.
 
 ### What the notebook does in Colab
 
 - Detects that it is running in Colab.
-- Clones or updates the repository into `/content/dlav-project` when needed.
+- Clones or updates the private GitHub Classroom repository into `/content/dlav-project` when needed.
 - Optionally mounts Google Drive.
 - Uses Google Drive as a backup location for completed run folders when available.
 - Downloads the dataset automatically if it is missing and `DOWNLOAD_DATA_IF_MISSING = True`.
 
 ### Typical Colab usage
 
-1. Open `notebooks/DLAV_Phase1.ipynb` in Colab.
+1. Open `notebooks/DLAV_Phase1.ipynb` from the GitHub Classroom repository in Colab.
 2. Set the editable parameters in the first code cell.
-3. Keep `MOUNT_DRIVE_IN_COLAB = True` if you want run artifacts copied to Drive.
-4. Run all cells.
+3. If Colab cannot clone the private repository automatically, authenticate GitHub and clone it manually, upload a zip snapshot of the repository, or copy a local clone into `/content/dlav-project`.
+4. Keep `MOUNT_DRIVE_IN_COLAB = True` if you want run artifacts copied to Drive.
+5. Run all cells.
 
 By default, completed runs can be backed up to:
 
@@ -164,7 +169,12 @@ This is useful because Colab VM storage is temporary.
 
 If you want to run locally:
 
-1. Clone the repository.
+1. Clone the private GitHub Classroom repository:
+
+```bash
+git clone https://github.com/vita-student-projects-2026/final-project-math.git
+```
+
 2. Install dependencies:
 
 ```bash
@@ -175,6 +185,7 @@ pip install -r requirements.txt
    - `data/train/`
    - `data/val/`
    - `data/test_public/`
+   If `DOWNLOAD_DATA_IF_MISSING = True`, the notebook can also download the dataset automatically when internet access to Google Drive is available.
 4. Open `notebooks/DLAV_Phase1.ipynb` from inside the repository.
 5. Run the notebook from top to bottom.
 
@@ -353,7 +364,7 @@ This is meant to keep the project easy to inspect for course staff while still b
 ## Git And Submission Notes
 
 - `data/` is ignored by git.
-- generated checkpoints, submissions, and run artifacts are ignored by git.
+- generated checkpoints, submissions, and run artifacts under `outputs/` are ignored by git.
 - folder placeholders are kept with `.gitkeep`.
 - the notebook and `src/` code are the files that matter most for the submission.
 
