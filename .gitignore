@@ -12,10 +12,37 @@ __pycache__/
 data/
 outputs/checkpoints/*
 !outputs/checkpoints/.gitkeep
+!outputs/checkpoints/phase1/
+!outputs/checkpoints/phase2/
+!outputs/checkpoints/phase3/
+outputs/checkpoints/phase1/*
+!outputs/checkpoints/phase1/.gitkeep
+outputs/checkpoints/phase2/*
+!outputs/checkpoints/phase2/.gitkeep
+outputs/checkpoints/phase3/*
+!outputs/checkpoints/phase3/.gitkeep
 outputs/submissions/*
 !outputs/submissions/.gitkeep
+!outputs/submissions/phase1/
+!outputs/submissions/phase2/
+!outputs/submissions/phase3/
+outputs/submissions/phase1/*
+!outputs/submissions/phase1/.gitkeep
+outputs/submissions/phase2/*
+!outputs/submissions/phase2/.gitkeep
+outputs/submissions/phase3/*
+!outputs/submissions/phase3/.gitkeep
 outputs/runs/*
 !outputs/runs/.gitkeep
+!outputs/runs/phase1/
+!outputs/runs/phase2/
+!outputs/runs/phase3/
+outputs/runs/phase1/*
+!outputs/runs/phase1/.gitkeep
+outputs/runs/phase2/*
+!outputs/runs/phase2/.gitkeep
+outputs/runs/phase3/*
+!outputs/runs/phase3/.gitkeep
 outputs/tmp_*
 outputs/torch_cache/
 outputs/channel_order_audit.png
@@ -92,6 +119,7 @@ target/
 
 # Jupyter Notebook
 .ipynb_checkpoints/
+notebooks/DLAV_Phase2.ipynb
 
 # IPython
 profile_default/

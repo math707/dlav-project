@@ -1,1 +1,1 @@
-"""Core project package for training and inference helpers."""
+"""Core project package organized into shared utilities and per-phase code."""

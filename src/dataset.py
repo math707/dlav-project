@@ -1,33 +1,3 @@
-import pickle
+"""Backward-compatible wrapper for :mod:`src.phase1.dataset`."""
 
-import torch
-from torch.utils.data import Dataset
-
-
-class DrivingDataset(Dataset):
-    def __init__(self, file_list, test=False):
-        self.samples = file_list
-        self.test = test
-
-    def __len__(self):
-        return len(self.samples)
-
-    def __getitem__(self, idx):
-        with open(self.samples[idx], 'rb') as f:
-            data = pickle.load(f)
-
-        camera = torch.FloatTensor(data['camera']).permute(2, 0, 1)
-        history = torch.FloatTensor(data['sdc_history_feature'])
-
-        if not self.test:
-            future = torch.FloatTensor(data['sdc_future_feature'])
-            return {
-                'camera': camera,
-                'history': history,
-                'future': future,
-            }
-
-        return {
-            'camera': camera,
-            'history': history,
-        }
+from .phase1.dataset import *  # noqa: F403

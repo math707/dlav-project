@@ -1,180 +1,98 @@
-﻿# DLAV Project
+# DLAV Project
 
-End-to-end planner for the DLAV course project. The repository is organized so that:
-
-- the notebook stays the main entry point for running experiments,
-- the core logic lives in `src/`,
-- the workflow remains easy to use in Google Colab,
-- run artifacts are saved in a predictable way for comparison and submission.
+End-to-end planning repository for the EPFL DLAV final project. The repo is now organized for the full course submission requirement: all three phases live in the same repository under separate folders, while shared utilities stay centralized in `src/shared/`.
 
 The official submission repository is the private GitHub Classroom repo:
 `https://github.com/vita-student-projects-2026/final-project-math.git`
 
-The current recommended experiment setup uses `model_b_v2`, a pretrained ResNet18-based planner with a small backbone learning rate, a short backbone warmup, scheduler support, and early stopping.
+## Current Status
 
-## Quick Start
+- Phase 1 is implemented and remains the current working pipeline.
+- Phase 2 has been structurally prepared but is not yet re-implemented in the cleaned `src/phase2/` layout.
+- Phase 3 has placeholder folders so the final repository structure is already in place.
 
-1. Clone the private GitHub Classroom repository locally, or open `notebooks/DLAV_Phase1.ipynb` from that repository in Google Colab.
-2. Edit the first code cell at the top of the notebook to choose the run parameters. The notebook defaults already point to the current recommended `model_b_v2` setup.
-3. Run all notebook cells from top to bottom.
-4. Check the run folder created under `outputs/runs/<timestamp>_<run_name>/`.
-5. The main artifacts are saved there: `model.pth` for the best checkpoint, `model_last.pth` for the last epoch, and `submission_phase1.csv` for the generated submission.
-
-## Expected First-Time Workflow
-
-For a TA or assistant landing on the repository for the first time, the recommended path is:
-
-1. Clone the private GitHub Classroom repository locally if you want the simplest setup.
-2. Install the requirements and open `notebooks/DLAV_Phase1.ipynb` from inside that local clone.
-3. If you prefer Colab, use the same Classroom repository there, but note that automatic cloning may require GitHub authentication because the repository is private.
-4. Run all cells once without changing the project code in `src/`.
-5. Inspect `outputs/runs/<timestamp>_<run_name>/` for the checkpoint, metrics, logs, and submission file.
+This refactor preserves the current Phase 1 model and training behavior. The goal of this step is structural cleanup only.
 
 ## Repository Structure
 
 ```text
 dlav-project/
 |-- notebooks/
-|   `-- DLAV_Phase1.ipynb
+|   |-- phase1/
+|   |   `-- DLAV_Phase1.ipynb
+|   |-- phase2/
+|   |   `-- DLAV_Phase2.ipynb
+|   |-- phase3/
+|   |   `-- DLAV_Phase3.ipynb
+|   |-- starter/
+|   |   `-- DLAV_Phase2_starter_reference.ipynb
+|   `-- DLAV_Phase1.ipynb                  # temporary compatibility copy
 |-- src/
-|   |-- __init__.py
-|   |-- data_utils.py
-|   |-- dataset.py
-|   |-- logger.py
-|   |-- model.py
-|   |-- project_setup.py
-|   |-- run_utils.py
-|   |-- submission.py
-|   |-- train.py
-|   `-- training_setup.py
+|   |-- shared/
+|   |   |-- data_utils.py
+|   |   |-- logger.py
+|   |   |-- project_setup.py
+|   |   |-- run_utils.py
+|   |   |-- submission.py
+|   |   `-- training_setup.py
+|   |-- phase1/
+|   |   |-- dataset.py
+|   |   |-- model.py
+|   |   `-- train.py
+|   |-- phase2/
+|   |   `-- __init__.py
+|   |-- phase3/
+|   |   `-- __init__.py
+|   |-- dataset.py                         # backward-compatible wrapper
+|   |-- model.py                           # backward-compatible wrapper
+|   |-- train.py                           # backward-compatible wrapper
+|   |-- data_utils.py                      # backward-compatible wrapper
+|   |-- logger.py                          # backward-compatible wrapper
+|   |-- project_setup.py                   # backward-compatible wrapper
+|   |-- run_utils.py                       # backward-compatible wrapper
+|   |-- submission.py                      # backward-compatible wrapper
+|   `-- training_setup.py                  # backward-compatible wrapper
 |-- outputs/
-|   |-- checkpoints/
 |   |-- runs/
+|   |   |-- phase1/
+|   |   |-- phase2/
+|   |   `-- phase3/
+|   |-- checkpoints/
+|   |   |-- phase1/
+|   |   |-- phase2/
+|   |   `-- phase3/
 |   `-- submissions/
-|-- data/                     # local / Colab data, not tracked by git
+|       |-- phase1/
+|       |-- phase2/
+|       `-- phase3/
+|-- data/                                  # local / Colab data, not tracked by git
 |-- requirements.txt
 |-- README.md
-`-- project_description.pdf
+`-- project_description.md
 ```
 
-## What Lives Where
+## Where Each Phase Lives
 
-- `notebooks/DLAV_Phase1.ipynb`
-  Main run notebook. It is intended for environment setup, Colab/Drive setup, experiment configuration, training, inference, and quick result inspection.
-- `src/model.py`
-  Model definitions and the `build_model(...)` registry. It contains `baseline`, `model_a`, `model_b`, and `model_b_v2`.
-- `src/dataset.py`
-  Dataset loading logic.
-- `src/train.py`
-  Training loop, validation metrics, best-checkpoint tracking, optional early stopping, and optional backbone warmup.
-- `src/training_setup.py`
-  Optimizer and scheduler construction, including split learning rates for pretrained ResNet18 variants.
-- `src/submission.py`
-  Prediction and submission CSV generation.
-- `src/run_utils.py`
-  Run directory creation, metrics saving, summaries, and artifact syncing.
-- `src/project_setup.py`
-  Project root detection and Colab / Google Drive helpers.
-- `src/data_utils.py`
-  Dataset download, extraction, and file discovery helpers.
-- `outputs/runs/`
-  Timestamped run folders with checkpoints, metrics, logs, and submissions.
+- Phase 1 notebook: `notebooks/phase1/DLAV_Phase1.ipynb`
+- Phase 1 code: `src/phase1/`
+- Phase 2 cleaned notebook placeholder: `notebooks/phase2/DLAV_Phase2.ipynb`
+- Phase 2 starter reference notebook: `notebooks/starter/DLAV_Phase2_starter_reference.ipynb`
+- Phase 2 future code location: `src/phase2/`
+- Phase 3 notebook placeholder: `notebooks/phase3/DLAV_Phase3.ipynb`
+- Phase 3 future code location: `src/phase3/`
+- Shared helpers for all phases: `src/shared/`
 
-## Main Workflow
+## Running Phase 1
 
-The recommended workflow is to use `notebooks/DLAV_Phase1.ipynb` as the single entry point, edit the parameter cell at the top, run all cells, and then inspect the generated run folder under `outputs/runs/`.
+The recommended Phase 1 entry point is now:
 
-The notebook is intentionally run-oriented. Reusable logic has been moved into `src/` so the notebook stays easier to read and easier for a TA or assistant to follow.
+`notebooks/phase1/DLAV_Phase1.ipynb`
 
-## Notebook Parameters
+The older root-level notebook path `notebooks/DLAV_Phase1.ipynb` is still kept temporarily as a compatibility copy during the transition.
 
-The first code cell exposes the main run parameters directly, without a heavy config system. The most important ones are:
+### Local workflow
 
-- `RUN_NAME`
-- `MODEL_NAME`
-- `BATCH_SIZE`
-- `NUM_EPOCHS`
-- `LEARNING_RATE_NAME`
-- `LEARNING_RATE`
-- `WEIGHT_DECAY`
-- `BACKBONE_LEARNING_RATE`
-- `BACKBONE_LR_SCALE`
-- `BACKBONE_WARMUP_EPOCHS`
-- `USE_LR_SCHEDULER`
-- `SCHEDULER_NAME`
-- `SCHEDULER_METRIC`
-- `SCHEDULER_FACTOR`
-- `SCHEDULER_PATIENCE`
-- `SCHEDULER_MIN_LR`
-- `EARLY_STOPPING_PATIENCE`
-- `EARLY_STOPPING_MIN_DELTA`
-- `RELOAD_BEST_CHECKPOINT_FOR_INFERENCE`
-- `DOWNLOAD_DATA_IF_MISSING`
-- `SYNC_RUN_TO_DRIVE`
-
-This makes it easy to compare runs while keeping the workflow simple.
-
-Current recommended configuration:
-
-```python
-MODEL_NAME = "model_b_v2"
-BATCH_SIZE = 32
-NUM_EPOCHS = 10000
-LEARNING_RATE_NAME = "default"
-LEARNING_RATE = 1e-3
-WEIGHT_DECAY = 1e-4
-BACKBONE_LEARNING_RATE = None
-BACKBONE_LR_SCALE = None      # model_b_v2 defaults to 0.1 if left as None
-BACKBONE_WARMUP_EPOCHS = 2
-USE_LR_SCHEDULER = True
-SCHEDULER_NAME = "plateau"
-SCHEDULER_METRIC = "val_ADE"
-SCHEDULER_FACTOR = 0.5
-SCHEDULER_PATIENCE = 6
-SCHEDULER_MIN_LR = 1e-5
-EARLY_STOPPING_PATIENCE = 25
-EARLY_STOPPING_MIN_DELTA = 1e-3
-RELOAD_BEST_CHECKPOINT_FOR_INFERENCE = True
-```
-
-`NUM_EPOCHS = 10000` is used as a ceiling for long runs. In practice, the scheduler and early stopping usually end training much earlier once validation ADE stops improving.
-
-## Running In Google Colab
-
-Colab is supported, but the official submission repository is private.
-
-### What the notebook does in Colab
-
-- Detects that it is running in Colab.
-- Clones or updates the private GitHub Classroom repository into `/content/dlav-project` when needed.
-- Optionally mounts Google Drive.
-- Uses Google Drive as a backup location for completed run folders when available.
-- Downloads the dataset automatically if it is missing and `DOWNLOAD_DATA_IF_MISSING = True`.
-
-### Typical Colab usage
-
-1. Open `notebooks/DLAV_Phase1.ipynb` from the GitHub Classroom repository in Colab.
-2. Set the editable parameters in the first code cell.
-3. If Colab cannot clone the private repository automatically, authenticate GitHub and clone it manually, upload a zip snapshot of the repository, or copy a local clone into `/content/dlav-project`.
-4. Keep `MOUNT_DRIVE_IN_COLAB = True` if you want run artifacts copied to Drive.
-5. Run all cells.
-
-By default, completed runs can be backed up to:
-
-`/content/drive/MyDrive/dlav-project-runs/`
-
-This is useful because Colab VM storage is temporary.
-
-## Running Locally
-
-If you want to run locally:
-
-1. Clone the private GitHub Classroom repository:
-
-```bash
-git clone https://github.com/vita-student-projects-2026/final-project-math.git
-```
-
+1. Clone the private GitHub Classroom repository.
 2. Install dependencies:
 
 ```bash
@@ -185,187 +103,63 @@ pip install -r requirements.txt
    - `data/train/`
    - `data/val/`
    - `data/test_public/`
-   If `DOWNLOAD_DATA_IF_MISSING = True`, the notebook can also download the dataset automatically when internet access to Google Drive is available.
-4. Open `notebooks/DLAV_Phase1.ipynb` from inside the repository.
-5. Run the notebook from top to bottom.
+4. Open `notebooks/phase1/DLAV_Phase1.ipynb`.
+5. Edit the parameter cell at the top if needed.
+6. Run all cells from top to bottom.
 
-The notebook detects the project root automatically when opened from the repository.
+### Colab workflow
 
-## Models
+The notebook still supports Colab. It detects the repository root, can clone/update the private Classroom repo under `/content/dlav-project`, can mount Google Drive, and can download the dataset automatically when `DOWNLOAD_DATA_IF_MISSING = True`.
 
-The project keeps multiple model variants in the same repository for clean comparisons.
+## Phase 1 Outputs
 
-- `DrivingPlanner`
-  Original baseline architecture from the starter notebook.
-- `DrivingPlannerModelA`
-  First improved model variant with a stronger CNN encoder, compact history MLP, and better fusion head.
-- `DrivingPlannerModelB`
-  First pretrained ResNet18 variant. It keeps the same interface as the earlier models and adds ImageNet-style camera preprocessing inside the model.
-- `DrivingPlannerModelBV2`
-  Current recommended model. It keeps the `model_b` architecture simple and comparison-friendly, but makes pretrained use safer and fine-tuning cleaner through stricter pretrained-weight loading, a default `0.1x` backbone learning-rate scale, and optional frozen-backbone warmup.
+Phase 1 now writes phase-scoped artifacts under:
 
-### Model Architecture
+- `outputs/runs/phase1/<timestamp>_<run_name>/`
+- `outputs/checkpoints/phase1/phase1_model.pth`
+- `outputs/submissions/phase1/submission_phase1.csv`
 
-The model takes two inputs:
+Inside each run directory, the main artifacts remain:
 
-- a camera image tensor,
-- a motion/history tensor describing the recent ego-vehicle trajectory.
+- `model.pth` for the best checkpoint
+- `model_last.pth` for the last epoch
+- `metrics.json` for structured metadata
+- `summary.txt` for a short run summary
+- `run.log` for training logs
+- `submission_phase1.csv` for the generated submission
 
-The baseline model uses a very shallow CNN to extract image features, flattens the history tensor, concatenates both branches, and maps them directly to the future trajectory with a single linear decoder.
+The Phase 1 best-checkpoint selection, reload behavior, scheduler support, early stopping, and submission generation flow are unchanged by this refactor.
 
-`Model A` keeps the same overall input/output structure but improves the internal feature extraction. It uses a stronger CNN visual encoder with progressive downsampling, then applies global average pooling to produce a compact visual embedding. The history branch is encoded with a small MLP, the two embeddings are fused with another small MLP, and a final prediction head outputs the trajectory.
+## Phase 1 Models
 
-`Model B` replaces the custom visual encoder with a pretrained `torchvision` ResNet18 backbone used as a camera feature extractor. It keeps the history branch simple, uses a compact fusion MLP, and still predicts the same trajectory format.
+Phase 1 still exposes the same model registry through `src.phase1.model.build_model(...)`:
 
-`Model B V2` keeps that same overall architecture, but is the recommended version because it has clearer pretrained input handling and a safer fine-tuning setup for the ResNet18 backbone.
+- `baseline`
+- `model_a`
+- `model_b`
+- `model_b_v2`
 
-All models return a predicted future trajectory with shape `(batch_size, 60, 3)`. Because every variant preserves the same `forward(camera, history)` interface and output format, comparisons between models stay straightforward.
+The recommended configuration remains `model_b_v2`.
 
-Use the notebook parameter:
+## Shared vs Phase-Specific Code
 
-```python
-MODEL_NAME = "model_b_v2"   # current recommended; alternatives: "baseline", "model_a", or "model_b"
-```
+- `src/shared/` contains reusable infrastructure: project bootstrap, dataset download helpers, logging, run tracking, submission generation, and optimizer/scheduler setup.
+- `src/phase1/` contains the current Phase 1 dataset, model, and training loop.
+- The old top-level `src/*.py` entry points now exist only as backward-compatible wrappers and should not be used for new phase-specific development.
 
-Internally, model creation goes through:
+## Phase 2 And Phase 3 Integration Status
 
-```python
-model = build_model(MODEL_NAME)
-```
+Phase 2 and Phase 3 are intentionally split into their own folders now so the final repo stays organized as the project grows.
 
-This keeps comparisons simple and avoids overwriting old architectures.
+- `notebooks/phase2/DLAV_Phase2.ipynb` is a cleaned placeholder notebook.
+- `notebooks/starter/DLAV_Phase2_starter_reference.ipynb` preserves the raw starter notebook for reference.
+- The legacy root-level `notebooks/DLAV_Phase2.ipynb` duplicate is intentionally not part of the cleaned layout.
+- `src/phase2/` is reserved for the cleaned Phase 2 implementation that will be integrated next.
+- `notebooks/phase3/DLAV_Phase3.ipynb` and `src/phase3/` are placeholders for the final milestone.
 
-For the ResNet18 models, the optimizer helper supports using a smaller learning rate on the pretrained backbone than on the newly added head layers:
-
-```python
-optimizer = build_optimizer(
-    model,
-    learning_rate=3e-4,
-    weight_decay=1e-4,
-    backbone_lr_scale=0.1,
-)
-```
-
-`Model B V2` keeps the same optimizer call, but defaults to a `0.1x` backbone learning-rate scale when no explicit backbone LR override is provided.
-
-Optional early stopping based on validation ADE can be enabled directly in the training call:
-
-```python
-TRAINING_SUMMARY = train(
-    model,
-    train_loader,
-    val_loader,
-    optimizer,
-    logger,
-    scheduler=scheduler,
-    scheduler_metric="val_ADE",
-    best_checkpoint_path=RUN_CONTEXT.checkpoint_path,
-    early_stopping_patience=25,
-    early_stopping_min_delta=1e-3,
-)
-```
-
-A short frozen-backbone warmup is also supported for the ResNet18 variants. During this warmup, the head learns first while the pretrained backbone stays frozen; after that, the backbone is unfrozen for normal fine-tuning.
-
-```python
-BACKBONE_WARMUP_EPOCHS = 2
-```
-
-## Training, Checkpoints, And Outputs
-
-Training is launched from the notebook. The notebook builds the datasets and dataloaders, creates the model through `build_model(...)`, builds the optimizer and scheduler, and then calls `train(...)` from `src/train.py`.
-
-During training, the loop:
-
-- runs training on the train split,
-- evaluates on the validation split every epoch,
-- tracks validation loss, ADE, and FDE,
-- saves the best checkpoint by validation ADE,
-- optionally applies early stopping based on validation ADE,
-- optionally freezes the ResNet18 backbone for the first `BACKBONE_WARMUP_EPOCHS` epochs before unfreezing it.
-
-Each execution creates a run directory:
-
-```text
-outputs/runs/<timestamp>_<run_name>/
-```
-
-A run folder typically contains:
-
-- `model.pth`
-  Best checkpoint of the run, selected by validation ADE.
-- `model_last.pth`
-  Last-epoch checkpoint.
-- `metrics.json`
-  Structured run metadata and recorded metrics.
-- `summary.txt`
-  Human-readable run summary.
-- `run.log`
-  Training log.
-- `submission_phase1.csv`
-  Generated submission file.
-
-For backward compatibility, the notebook also writes:
-
-- `outputs/checkpoints/phase1_model.pth`
-- `outputs/submissions/submission_phase1.csv`
-
-These are legacy convenience copies. The main source of truth is the timestamped run folder.
-
-## Best Checkpoint Behavior
-
-The training setup tracks the best validation ADE during training.
-
-- The best checkpoint is saved to `model.pth`.
-- The last model is saved separately to `model_last.pth`.
-- By default, the notebook reloads the best checkpoint before qualitative evaluation and submission generation.
-- Early stopping, when enabled, only decides when to stop training; it does not change the fact that `model.pth` is always selected by best validation ADE.
-
-This behavior is controlled by:
-
-```python
-RELOAD_BEST_CHECKPOINT_FOR_INFERENCE = True
-```
-
-So, by default, the submission CSV is generated from the best checkpoint of the run, not just the last epoch.
-
-## Inference And Submission Generation
-
-Inference and submission generation are launched from the notebook and implemented through helpers in `src/submission.py`.
-
-In this repository, "inference" means running the trained planner forward without labels. The most important inference pass is on `data/test_public/`, where the model produces the final submission CSV. The notebook also runs downstream qualitative inspection on validation examples after the best checkpoint is optionally reloaded.
-
-The output CSV is saved to:
-
-```text
-outputs/runs/<timestamp>_<run_name>/submission_phase1.csv
-```
-
-and also copied to:
-
-```text
-outputs/submissions/submission_phase1.csv
-```
-
-The expected output format remains unchanged.
-
-## Reproducibility And Comparison
-
-The repository is organized to make experiments easier to compare:
-
-- baseline and improved models live side by side,
-- key hyperparameters are visible at the top of the notebook,
-- each run gets its own timestamped folder,
-- metrics, logs, and checkpoints are grouped together,
-- the best validation checkpoint is preserved automatically.
-
-This is meant to keep the project easy to inspect for course staff while still being practical for ongoing experimentation.
-
-## Git And Submission Notes
+## Notes
 
 - `data/` is ignored by git.
-- generated checkpoints, submissions, and run artifacts under `outputs/` are ignored by git.
-- folder placeholders are kept with `.gitkeep`.
-- the notebook and `src/` code are the files that matter most for the submission.
-
-Before pushing, make sure the repository contains code and documentation, not local datasets or temporary outputs.
+- Generated outputs under `outputs/` are ignored by git; only `.gitkeep` placeholders are tracked.
+- The repository root detection still works from nested notebook folders because the setup code searches parent directories for the project root.
+- `project_description.md` is the current project brief in this repository.
