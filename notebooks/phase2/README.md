@@ -44,6 +44,7 @@ Phase 2 focuses on perception-aware planning. The main task is still future traj
 
 - `phase2_trajectory_only`: trajectory baseline using camera, motion history, and `driving_command`
 - `phase2_multitask`: shared planner plus a depth estimation auxiliary head used during training and validation
+- `phase2_b_v2_port`: direct Phase 1 `model_b_v2`-style Phase 2 ablation that uses camera and motion history only and ignores `driving_command`
 
 ## Recommended Model/Config
 
@@ -67,6 +68,7 @@ Why this is the current recommendation:
 Status of final model selection:
 
 - `phase2_trajectory_only` is kept as the reference baseline.
+- `phase2_b_v2_port` is available as a low-risk ablation to compare the current command-conditioned baseline against a direct `model_b_v2`-style port.
 - `phase2_multitask` with depth supervision is the current main candidate under evaluation.
 - The final Phase 2 choice will be based on validation ADE comparisons between the trajectory-only baseline and multitask depth variants with different `LAMBDA_DEPTH` values.
 - Final selected run and final ADE/Kaggle result: to be filled after the final Phase 2 experiments
