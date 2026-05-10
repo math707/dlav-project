@@ -64,7 +64,7 @@ def _build_resnet18_spatial_backbone(pretrained: bool, strict_pretrained: bool =
     except ImportError as exc:
         raise ImportError(
             "Phase 2 ResNet18 planner variants require torchvision. Install torchvision to use "
-            "MODEL_NAME='phase2_trajectory_only' or 'phase2_multitask'."
+            "MODEL_NAME='phase2_trajectory_only', 'phase2_multitask', or 'phase2_b_v2_depth'."
         ) from exc
 
     backbone = None
@@ -105,7 +105,8 @@ def _build_resnet18_pooled_backbone(pretrained: bool, strict_pretrained: bool = 
     except ImportError as exc:
         raise ImportError(
             "Phase 2 ResNet18 planner variants require torchvision. Install torchvision to use "
-            "MODEL_NAME='phase2_trajectory_only', 'phase2_multitask', or 'phase2_b_v2_port'."
+            "MODEL_NAME='phase2_trajectory_only', 'phase2_multitask', 'phase2_b_v2_port', or "
+            "'phase2_b_v2_depth'."
         ) from exc
 
     backbone = None
@@ -551,6 +552,168 @@ class Phase2ModelBV2Port(nn.Module):
         return trajectory
 
 
+class Phase2ModelBV2Depth(nn.Module):
+    """Phase 1 model_b_v2-style Phase 2 ablation with depth supervision and no command conditioning."""
+
+    default_backbone_lr_scale = 0.1
+
+    def __init__(
+        self,
+        *,
+        history_steps: int = 21,
+        history_features: int = 3,
+        future_steps: int = 60,
+        trajectory_features: int = 2,
+        visual_embedding_dim: int = 256,
+        history_hidden_dim: int = 128,
+        history_embedding_dim: int = 128,
+        fusion_hidden_dim: int = 256,
+        pretrained_backbone: bool = True,
+        freeze_backbone: bool = False,
+        normalize_camera: bool = True,
+        strict_pretrained_backbone: bool = True,
+        keep_backbone_in_eval_when_frozen: bool = True,
+    ):
+        super().__init__()
+        self.future_steps = future_steps
+        self.trajectory_features = trajectory_features
+        self.keep_backbone_in_eval_when_frozen = keep_backbone_in_eval_when_frozen
+        self._backbone_trainable = True
+
+        self.camera_preprocessor = CameraTensorPreprocessor(
+            normalize_to_unit_scale=True,
+            imagenet_normalize=normalize_camera,
+        )
+        self.visual_backbone, visual_feature_dim = _build_resnet18_spatial_backbone(
+            pretrained=pretrained_backbone,
+            strict_pretrained=strict_pretrained_backbone,
+        )
+        self.visual_pool = nn.AdaptiveAvgPool2d((1, 1))
+        self.visual_projection = nn.Sequential(
+            nn.Linear(visual_feature_dim, visual_embedding_dim),
+            nn.ReLU(inplace=True),
+        )
+
+        history_input_dim = history_steps * history_features
+        self.history_encoder = nn.Sequential(
+            nn.Linear(history_input_dim, history_hidden_dim),
+            nn.ReLU(inplace=True),
+            nn.Linear(history_hidden_dim, history_embedding_dim),
+            nn.ReLU(inplace=True),
+        )
+
+        self.fusion_head = nn.Sequential(
+            nn.Linear(visual_embedding_dim + history_embedding_dim, fusion_hidden_dim),
+            nn.ReLU(inplace=True),
+            nn.Linear(fusion_hidden_dim, fusion_hidden_dim),
+            nn.ReLU(inplace=True),
+        )
+        self.trajectory_head = nn.Linear(fusion_hidden_dim, future_steps * trajectory_features)
+        self.depth_head = DepthDecoder(visual_feature_dim)
+
+        if freeze_backbone:
+            self.freeze_backbone()
+
+    @property
+    def backbone_is_frozen(self):
+        return not self._backbone_trainable
+
+    @property
+    def supports_depth_aux(self) -> bool:
+        return True
+
+    def set_backbone_trainable(self, trainable: bool):
+        self._backbone_trainable = trainable
+        for parameter in self.visual_backbone.parameters():
+            parameter.requires_grad = trainable
+        return self
+
+    def freeze_backbone(self):
+        return self.set_backbone_trainable(False)
+
+    def unfreeze_backbone(self):
+        return self.set_backbone_trainable(True)
+
+    def train(self, mode: bool = True):
+        super().train(mode)
+        if mode and self.backbone_is_frozen and self.keep_backbone_in_eval_when_frozen:
+            self.visual_backbone.eval()
+        return self
+
+    def _prepare_camera(self, camera):
+        return self.camera_preprocessor(camera)
+
+    def _encode_visual(self, camera):
+        feature_map = self.visual_backbone(self._prepare_camera(camera))
+        pooled = self.visual_pool(feature_map).flatten(1)
+        visual_embedding = self.visual_projection(pooled)
+        return feature_map, visual_embedding
+
+    def get_optimizer_param_groups(
+        self,
+        learning_rate: float,
+        weight_decay: float = 0.0,
+        backbone_learning_rate: float | None = None,
+        backbone_lr_scale: float | None = None,
+    ):
+        if backbone_learning_rate is not None and backbone_lr_scale is not None:
+            raise ValueError("Specify either backbone_learning_rate or backbone_lr_scale, not both.")
+
+        head_modules = [self.visual_projection, self.history_encoder, self.fusion_head, self.trajectory_head, self.depth_head]
+        backbone_parameters = _collect_parameters([self.visual_backbone], trainable_only=False)
+        head_parameters = _collect_parameters(head_modules, trainable_only=True)
+
+        if backbone_learning_rate is None and backbone_lr_scale is None:
+            backbone_lr_scale = self.default_backbone_lr_scale
+        resolved_backbone_lr = (
+            backbone_learning_rate
+            if backbone_learning_rate is not None
+            else learning_rate if backbone_lr_scale is None else learning_rate * backbone_lr_scale
+        )
+
+        parameter_groups = []
+        if head_parameters:
+            parameter_groups.append(
+                {
+                    'name': 'head',
+                    'params': head_parameters,
+                    'lr': learning_rate,
+                    'weight_decay': weight_decay,
+                }
+            )
+        if backbone_parameters:
+            parameter_groups.append(
+                {
+                    'name': 'backbone',
+                    'params': backbone_parameters,
+                    'lr': resolved_backbone_lr,
+                    'weight_decay': weight_decay,
+                }
+            )
+
+        return parameter_groups
+
+    def forward(self, camera, history, driving_command=None, return_aux: bool = False):
+        del driving_command
+
+        feature_map, visual_embedding = self._encode_visual(camera)
+
+        history_flat = history.reshape(history.size(0), -1)
+        history_embedding = self.history_encoder(history_flat)
+
+        fused_features = torch.cat([visual_embedding, history_embedding], dim=1)
+        trajectory = self.trajectory_head(self.fusion_head(fused_features))
+        trajectory = trajectory.reshape(-1, self.future_steps, self.trajectory_features)
+
+        if not return_aux:
+            return trajectory
+
+        return {
+            'trajectory': trajectory,
+            'depth': self.depth_head(feature_map, output_size=camera.shape[-2:]),
+        }
+
+
 class Phase2TrajectoryOnlyPlanner(Phase2ResNet18Planner):
     def __init__(self, *args, **kwargs):
         kwargs.setdefault('use_depth_head', False)
@@ -567,6 +730,7 @@ MODEL_REGISTRY = {
     'phase2_trajectory_only': Phase2TrajectoryOnlyPlanner,
     'phase2_multitask': Phase2MultiTaskPlanner,
     'phase2_b_v2_port': Phase2ModelBV2Port,
+    'phase2_b_v2_depth': Phase2ModelBV2Depth,
 }
 
 

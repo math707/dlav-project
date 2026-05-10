@@ -31,6 +31,7 @@ Phase 2 focuses on perception-aware planning. The main task is still future traj
 - Starter reference notebook: `notebooks/starter/DLAV_Phase2_starter_reference.ipynb`
 - Phase code: `src/phase2/`
   - `dataset.py`
+  - `ensemble.py`
   - `model.py`
   - `train.py`
   - `submission.py`
@@ -45,6 +46,7 @@ Phase 2 focuses on perception-aware planning. The main task is still future traj
 - `phase2_trajectory_only`: trajectory baseline using camera, motion history, and `driving_command`
 - `phase2_multitask`: shared planner plus a depth estimation auxiliary head used during training and validation
 - `phase2_b_v2_port`: direct Phase 1 `model_b_v2`-style Phase 2 ablation that uses camera and motion history only and ignores `driving_command`
+- `phase2_b_v2_depth`: direct Phase 1 `model_b_v2`-style Phase 2 ablation with camera and motion history only, plus a depth auxiliary head used during training and validation
 
 ## Recommended Model/Config
 
@@ -69,6 +71,7 @@ Status of final model selection:
 
 - `phase2_trajectory_only` is kept as the reference baseline.
 - `phase2_b_v2_port` is available as a low-risk ablation to compare the current command-conditioned baseline against a direct `model_b_v2`-style port.
+- `phase2_b_v2_depth` is available as the corresponding no-command depth-supervised ablation.
 - `phase2_multitask` with depth supervision is the current main candidate under evaluation.
 - The final Phase 2 choice will be based on validation ADE comparisons between the trajectory-only baseline and multitask depth variants with different `LAMBDA_DEPTH` values.
 - Final selected run and final ADE/Kaggle result: to be filled after the final Phase 2 experiments
@@ -100,6 +103,7 @@ Important Phase 2 behavior:
 - Depth is training supervision only.
 - Depth is not an inference input.
 - Depth is not a submission output.
+- Optional checkpoint ensembling is available through `src/phase2/ensemble.py` for separate validation or submission experiments without changing the normal single-model notebook workflow.
 
 ## Output Locations
 
@@ -114,4 +118,5 @@ Important Phase 2 behavior:
 
 - Semantic segmentation is intentionally not implemented yet in this first clean Phase 2 pass.
 - A future extension is to add semantic supervision on top of the current trajectory and depth setup.
+- Lightweight checkpoint ensembling is available as an optional tool, but this README does not claim any final ensemble metric yet.
 - This README does not claim final Phase 2 metrics because the validation runs are still in progress.
