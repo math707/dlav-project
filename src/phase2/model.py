@@ -64,7 +64,8 @@ def _build_resnet18_spatial_backbone(pretrained: bool, strict_pretrained: bool =
     except ImportError as exc:
         raise ImportError(
             "Phase 2 ResNet18 planner variants require torchvision. Install torchvision to use "
-            "MODEL_NAME='phase2_trajectory_only', 'phase2_multitask', or 'phase2_b_v2_depth'."
+            "MODEL_NAME='phase2_trajectory_only', 'phase2_multitask', 'phase2_b_v2_depth', or "
+            "'phase2_gru_delta_residual'."
         ) from exc
 
     backbone = None
@@ -714,6 +715,260 @@ class Phase2ModelBV2Depth(nn.Module):
         }
 
 
+class Phase2GRUDeltaResidualPlanner(nn.Module):
+    """Sequence-aware planner with GRU history encoding and GRU delta-residual decoding.
+
+    The decoder predicts a residual `delta_xy` over a constant-velocity prior computed from the
+    last two history XY points. The final trajectory is obtained by cumulatively summing the
+    resulting deltas from the last observed XY position.
+    """
+
+    default_backbone_lr_scale = 0.1
+
+    def __init__(
+        self,
+        *,
+        history_steps: int = 21,
+        history_features: int = 3,
+        future_steps: int = 60,
+        trajectory_features: int = 2,
+        command_vocab_size: int = NUM_DRIVING_COMMANDS,
+        command_embedding_dim: int = 16,
+        command_hidden_dim: int = 32,
+        visual_embedding_dim: int = 256,
+        history_hidden_dim: int = 128,
+        history_embedding_dim: int = 128,
+        fusion_hidden_dim: int = 256,
+        decoder_hidden_dim: int = 256,
+        decoder_context_dim: int = 64,
+        pretrained_backbone: bool = True,
+        freeze_backbone: bool = False,
+        normalize_camera: bool = True,
+        strict_pretrained_backbone: bool = True,
+        keep_backbone_in_eval_when_frozen: bool = True,
+        use_depth_head: bool = True,
+    ):
+        super().__init__()
+        if trajectory_features != 2:
+            raise ValueError('phase2_gru_delta_residual expects trajectory_features=2 for XY decoding.')
+        if history_steps < 2:
+            raise ValueError('phase2_gru_delta_residual requires at least two history steps.')
+
+        self.future_steps = future_steps
+        self.trajectory_features = trajectory_features
+        self.keep_backbone_in_eval_when_frozen = keep_backbone_in_eval_when_frozen
+        self._backbone_trainable = True
+
+        self.camera_preprocessor = CameraTensorPreprocessor(
+            normalize_to_unit_scale=True,
+            imagenet_normalize=normalize_camera,
+        )
+        self.visual_backbone, visual_feature_dim = _build_resnet18_spatial_backbone(
+            pretrained=pretrained_backbone,
+            strict_pretrained=strict_pretrained_backbone,
+        )
+        self.visual_pool = nn.AdaptiveAvgPool2d((1, 1))
+        self.visual_projection = nn.Sequential(
+            nn.Linear(visual_feature_dim, visual_embedding_dim),
+            nn.ReLU(inplace=True),
+        )
+
+        self.history_encoder = nn.GRU(
+            input_size=history_features,
+            hidden_size=history_hidden_dim,
+            num_layers=1,
+            batch_first=True,
+        )
+        self.history_projection = nn.Sequential(
+            nn.Linear(history_hidden_dim, history_embedding_dim),
+            nn.ReLU(inplace=True),
+        )
+
+        self.command_embedding = nn.Embedding(command_vocab_size, command_embedding_dim)
+        self.command_encoder = nn.Sequential(
+            nn.Linear(command_embedding_dim, command_hidden_dim),
+            nn.ReLU(inplace=True),
+        )
+
+        fused_dim = visual_embedding_dim + history_embedding_dim + command_hidden_dim
+        self.fusion_head = nn.Sequential(
+            nn.Linear(fused_dim, fusion_hidden_dim),
+            nn.ReLU(inplace=True),
+            nn.Linear(fusion_hidden_dim, fusion_hidden_dim),
+            nn.ReLU(inplace=True),
+        )
+
+        self.decoder_init = nn.Sequential(
+            nn.Linear(fusion_hidden_dim, decoder_hidden_dim),
+            nn.Tanh(),
+        )
+        self.decoder_context = nn.Sequential(
+            nn.Linear(fusion_hidden_dim, decoder_context_dim),
+            nn.ReLU(inplace=True),
+        )
+        self.decoder = nn.GRU(
+            input_size=trajectory_features + decoder_context_dim,
+            hidden_size=decoder_hidden_dim,
+            num_layers=1,
+            batch_first=True,
+        )
+        self.residual_head = nn.Linear(decoder_hidden_dim, trajectory_features)
+        nn.init.zeros_(self.residual_head.weight)
+        nn.init.zeros_(self.residual_head.bias)
+
+        self.depth_head = DepthDecoder(visual_feature_dim) if use_depth_head else None
+
+        if freeze_backbone:
+            self.freeze_backbone()
+
+    @property
+    def backbone_is_frozen(self):
+        return not self._backbone_trainable
+
+    @property
+    def supports_depth_aux(self) -> bool:
+        return self.depth_head is not None
+
+    def set_backbone_trainable(self, trainable: bool):
+        self._backbone_trainable = trainable
+        for parameter in self.visual_backbone.parameters():
+            parameter.requires_grad = trainable
+        return self
+
+    def freeze_backbone(self):
+        return self.set_backbone_trainable(False)
+
+    def unfreeze_backbone(self):
+        return self.set_backbone_trainable(True)
+
+    def train(self, mode: bool = True):
+        super().train(mode)
+        if mode and self.backbone_is_frozen and self.keep_backbone_in_eval_when_frozen:
+            self.visual_backbone.eval()
+        return self
+
+    def _prepare_camera(self, camera):
+        return self.camera_preprocessor(camera)
+
+    def _encode_visual(self, camera):
+        feature_map = self.visual_backbone(self._prepare_camera(camera))
+        pooled = self.visual_pool(feature_map).flatten(1)
+        visual_embedding = self.visual_projection(pooled)
+        return feature_map, visual_embedding
+
+    def _encode_history(self, history):
+        _, history_hidden = self.history_encoder(history)
+        history_hidden = history_hidden[-1]
+        return self.history_projection(history_hidden)
+
+    def _encode_command(self, driving_command, batch_size: int, device):
+        if driving_command is None:
+            return torch.zeros(batch_size, self.command_encoder[0].out_features, device=device)
+
+        driving_command = torch.as_tensor(driving_command, device=device).long().view(-1)
+        if driving_command.numel() == 1 and batch_size > 1:
+            driving_command = driving_command.expand(batch_size)
+        if driving_command.numel() != batch_size:
+            raise ValueError(
+                f'driving_command batch has {driving_command.numel()} entries for batch size {batch_size}.'
+            )
+        return self.command_encoder(self.command_embedding(driving_command))
+
+    def get_optimizer_param_groups(
+        self,
+        learning_rate: float,
+        weight_decay: float = 0.0,
+        backbone_learning_rate: float | None = None,
+        backbone_lr_scale: float | None = None,
+    ):
+        if backbone_learning_rate is not None and backbone_lr_scale is not None:
+            raise ValueError("Specify either backbone_learning_rate or backbone_lr_scale, not both.")
+
+        head_modules = [
+            self.visual_projection,
+            self.history_encoder,
+            self.history_projection,
+            self.command_embedding,
+            self.command_encoder,
+            self.fusion_head,
+            self.decoder_init,
+            self.decoder_context,
+            self.decoder,
+            self.residual_head,
+            self.depth_head,
+        ]
+        backbone_parameters = _collect_parameters([self.visual_backbone], trainable_only=False)
+        head_parameters = _collect_parameters(head_modules, trainable_only=True)
+
+        if backbone_learning_rate is None and backbone_lr_scale is None:
+            backbone_lr_scale = self.default_backbone_lr_scale
+        resolved_backbone_lr = (
+            backbone_learning_rate
+            if backbone_learning_rate is not None
+            else learning_rate if backbone_lr_scale is None else learning_rate * backbone_lr_scale
+        )
+
+        parameter_groups = []
+        if head_parameters:
+            parameter_groups.append(
+                {
+                    'name': 'head',
+                    'params': head_parameters,
+                    'lr': learning_rate,
+                    'weight_decay': weight_decay,
+                }
+            )
+        if backbone_parameters:
+            parameter_groups.append(
+                {
+                    'name': 'backbone',
+                    'params': backbone_parameters,
+                    'lr': resolved_backbone_lr,
+                    'weight_decay': weight_decay,
+                }
+            )
+
+        return parameter_groups
+
+    def forward(self, camera, history, driving_command=None, return_aux: bool = False):
+        feature_map, visual_embedding = self._encode_visual(camera)
+
+        history = history.float()
+        history_embedding = self._encode_history(history)
+        command_embedding = self._encode_command(driving_command, batch_size=history.size(0), device=history.device)
+
+        fused_features = torch.cat([visual_embedding, history_embedding, command_embedding], dim=1)
+        fused_context = self.fusion_head(fused_features)
+
+        decoder_hidden = self.decoder_init(fused_context).unsqueeze(0)
+        decoder_context = self.decoder_context(fused_context)
+
+        history_xy = history[..., :2]
+        last_history_xy = history_xy[:, -1, :]
+        prior_velocity = history_xy[:, -1, :] - history_xy[:, -2, :]
+
+        prev_delta = prior_velocity
+        predicted_deltas = []
+        for _ in range(self.future_steps):
+            decoder_input = torch.cat([prev_delta, decoder_context], dim=1).unsqueeze(1)
+            decoder_output, decoder_hidden = self.decoder(decoder_input, decoder_hidden)
+            residual_delta = self.residual_head(decoder_output.squeeze(1))
+            step_delta = prior_velocity + residual_delta
+            predicted_deltas.append(step_delta)
+            prev_delta = step_delta
+
+        delta_sequence = torch.stack(predicted_deltas, dim=1)
+        trajectory = last_history_xy.unsqueeze(1) + torch.cumsum(delta_sequence, dim=1)
+
+        if not return_aux:
+            return trajectory
+
+        outputs = {'trajectory': trajectory}
+        if self.depth_head is not None:
+            outputs['depth'] = self.depth_head(feature_map, output_size=camera.shape[-2:])
+        return outputs
+
+
 class Phase2TrajectoryOnlyPlanner(Phase2ResNet18Planner):
     def __init__(self, *args, **kwargs):
         kwargs.setdefault('use_depth_head', False)
@@ -731,6 +986,7 @@ MODEL_REGISTRY = {
     'phase2_multitask': Phase2MultiTaskPlanner,
     'phase2_b_v2_port': Phase2ModelBV2Port,
     'phase2_b_v2_depth': Phase2ModelBV2Depth,
+    'phase2_gru_delta_residual': Phase2GRUDeltaResidualPlanner,
 }
 
 
