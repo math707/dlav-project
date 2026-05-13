@@ -21,7 +21,7 @@ def list_test_public_real_files(test_dir: str | Path) -> list[Path]:
     return test_files
 
 
-def build_test_data_loader(
+def build_public_test_data_loader(
     test_dir: str | Path,
     *,
     batch_size: int = 250,
@@ -33,6 +33,23 @@ def build_test_data_loader(
         test_dataset,
         batch_size=batch_size,
         shuffle=False,
+        num_workers=num_workers,
+        pin_memory=pin_memory,
+    )
+
+
+def build_test_data_loader(
+    test_dir: str | Path,
+    *,
+    batch_size: int = 250,
+    num_workers: int = 0,
+    pin_memory: bool = False,
+):
+    """Backward-compatible alias for the Phase 3 public test loader builder."""
+
+    return build_public_test_data_loader(
+        test_dir,
+        batch_size=batch_size,
         num_workers=num_workers,
         pin_memory=pin_memory,
     )
@@ -98,7 +115,7 @@ def generate_submission(
     if data_loader is None:
         if test_dir is None:
             raise ValueError('Provide either data_loader or test_dir.')
-        data_loader = build_test_data_loader(
+        data_loader = build_public_test_data_loader(
             test_dir,
             batch_size=test_batch_size,
             num_workers=num_workers,

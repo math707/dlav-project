@@ -5,6 +5,7 @@ from .dataset import DrivingDataset, PHASE3_DATASET_SPECS, build_phase3_splits, 
 from .model import MODEL_REGISTRY, Phase3Planner, build_model
 from .submission import (
     build_submission_dataframe,
+    build_public_test_data_loader,
     build_test_data_loader,
     generate_submission,
     list_test_public_real_files,
@@ -19,6 +20,7 @@ __all__ = [
     'Phase3Planner',
     'build_model',
     'build_phase3_splits',
+    'build_public_test_data_loader',
     'build_submission_dataframe',
     'build_test_data_loader',
     'build_train_augmentations',
