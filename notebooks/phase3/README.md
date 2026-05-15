@@ -86,6 +86,89 @@ Important Phase 3 behavior:
 - Validation loss is computed on XY only, matching training.
 - The Kaggle CSV contains `id, x_1, y_1, ..., x_60, y_60`.
 
+## Public Test Size
+
+- The current Kaggle public test set contains 864 samples in `test_public_real/`.
+- The notebook keeps `EXPECTED_PUBLIC_TEST_SAMPLES = None` by default and then uses `len(public_test_files)` automatically.
+- With the current official public test set, the expected submission shape is `(864, 121)`.
+- Files are read in numeric filename order: `0.pkl, 1.pkl, ..., 863.pkl`.
+- Submission generation uses only `test_public_real/`, while validation continues to use the remaining `val_real/` split.
+
+## First Baseline Run
+
+Recorded baseline run:
+
+- Run folder:
+  - `outputs/runs/phase3/20260513_175542_phase3_resnet18_realmix500_pretrained_aug0.5_plateau_wd0.0001/`
+- Model:
+  - `phase3_resnet18`
+- Main config:
+  - `NUM_EPOCHS = 100`
+  - `BATCH_SIZE = 32`
+  - `TEST_BATCH_SIZE = 250`
+  - `LR = 1e-3`
+  - `WEIGHT_DECAY = 1e-4`
+  - `REAL_TRAIN_COUNT = 500`
+  - `SEED = 42`
+  - `USE_AUGMENTATION = True`
+  - `AUGMENTATION_STRENGTH = 0.5`
+  - `PRETRAINED = True`
+  - `BACKBONE_LR_SCALE = 0.1`
+  - `BACKBONE_WARMUP_EPOCHS = 2`
+  - `USE_LR_SCHEDULER = True`
+  - `SCHEDULER_NAME = 'plateau'`
+  - `SCHEDULER_METRIC = 'val_ADE'`
+  - `SCHEDULER_FACTOR = 0.5`
+  - `SCHEDULER_PATIENCE = 6`
+  - `SCHEDULER_MIN_LR = 1e-5`
+  - `EARLY_STOPPING_PATIENCE = 25`
+  - `EARLY_STOPPING_MIN_DELTA = 1e-3`
+  - `RELOAD_BEST_CHECKPOINT_FOR_INFERENCE = True`
+- Observed result from the copied training log/config:
+  - best validation ADE: `1.8018`
+  - best epoch: `53`
+  - FDE at best epoch: `4.9923`
+  - early stopping triggered at epoch `78`
+
+Interpretation:
+
+- This is a solid first Phase 3 baseline.
+- It is very close to the first important threshold of `ADE < 1.8`, but it is not there yet.
+- It is still behind the stronger reported validation range around `1.4-1.5`.
+- The model appears to fit the mixed training set well and then plateau on real validation, so simply training longer is unlikely to be enough.
+- The next improvements should target better generalization rather than more of the same optimization.
+
+## Useful Lessons From Accessible Phase 1 Results
+
+The local `result_colab/phase1/` folder is accessible from this environment, so it can be used for guidance.
+
+Most useful accessible Phase 1 signal:
+
+- Best accessible Phase 1 run:
+  - `20260426_163601_model_b_v2_resnet18_pretrained_warmup2_higher_lr`
+- Best accessible validation ADE:
+  - `1.6783`
+- Model:
+  - `model_b_v2`
+- Batch size:
+  - `32`
+- Learning rate:
+  - `7e-4`
+- Weight decay:
+  - `1e-4`
+- Scheduler:
+  - `plateau` on `val_ADE`
+- Backbone warmup:
+  - `2` epochs, with the backbone frozen for the first two epochs according to the run log
+
+What seems transferable to Phase 3:
+
+- A pretrained ResNet18 backbone plus a lower LR than `1e-3` is a credible direction.
+- `weight_decay = 1e-4` remains a reasonable default.
+- `ReduceLROnPlateau` helped the best Phase 1 run improve late in training after several LR drops.
+- Short backbone warmup is still sensible when fine-tuning a pretrained backbone.
+- If the checkpoint shapes are compatible, initializing Phase 3 from a strong Phase 1 or Phase 2 trajectory model is a worthwhile transfer-learning experiment.
+
 ## Output Locations
 
 - Run directory: `outputs/runs/phase3/<timestamp>_<run_name>/`

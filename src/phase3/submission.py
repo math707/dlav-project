@@ -13,7 +13,7 @@ from .dataset import DrivingDataset, list_pkl_files
 
 
 def list_test_public_real_files(test_dir: str | Path) -> list[Path]:
-    """Load test files in sorted numeric order for Kaggle submission generation."""
+    """Load public-test files in sorted numeric order for Kaggle submission generation."""
 
     test_files = list_pkl_files(test_dir)
     if not test_files:
@@ -22,13 +22,13 @@ def list_test_public_real_files(test_dir: str | Path) -> list[Path]:
 
 
 def build_public_test_data_loader(
-    test_dir: str | Path,
+    public_test_dir: str | Path,
     *,
     batch_size: int = 250,
     num_workers: int = 0,
     pin_memory: bool = False,
 ):
-    test_dataset = DrivingDataset(list_test_public_real_files(test_dir), test=True)
+    test_dataset = DrivingDataset(list_test_public_real_files(public_test_dir), test=True)
     return DataLoader(
         test_dataset,
         batch_size=batch_size,
@@ -96,12 +96,13 @@ def generate_submission(
     output_path: str | Path,
     device,
     data_loader=None,
+    public_test_dir: str | Path | None = None,
     test_dir: str | Path | None = None,
     checkpoint_path: str | Path | None = None,
     reload_checkpoint: bool = False,
     legacy_output_path: str | Path | None = None,
     copy_fn=None,
-    expected_num_samples: int | None = 1000,
+    expected_num_samples: int | None = None,
     test_batch_size: int = 250,
     num_workers: int = 0,
     pin_memory: bool = False,
@@ -113,10 +114,11 @@ def generate_submission(
         model.load_state_dict(state_dict)
 
     if data_loader is None:
-        if test_dir is None:
-            raise ValueError('Provide either data_loader or test_dir.')
+        resolved_public_test_dir = public_test_dir if public_test_dir is not None else test_dir
+        if resolved_public_test_dir is None:
+            raise ValueError('Provide either data_loader or public_test_dir.')
         data_loader = build_public_test_data_loader(
-            test_dir,
+            resolved_public_test_dir,
             batch_size=test_batch_size,
             num_workers=num_workers,
             pin_memory=pin_memory,
