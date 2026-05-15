@@ -1,186 +1,73 @@
 # Phase 3
 
+Notebook: [DLAV_Phase3.ipynb](DLAV_Phase3.ipynb)  
+Code: `src/phase3/`
+
 ## Goal
 
-Phase 3 focuses on sim-to-real generalization. The model is trained on synthetic `train/` data and mixed with a randomized subset of labeled real `val_real/` samples, then validated on the remaining real samples.
+Generalize from simulation to real data. Training mixes synthetic `train/` samples with a randomized subset of labeled real `val_real/` samples, and validation is done on the remaining real samples.
 
 ## Inputs and Targets
 
-- Training and validation inputs:
-  - `camera`
-  - `sdc_history_feature`
-- Training and validation target:
-  - `sdc_future_feature`
-- Target actually optimized in this repo:
-  - XY coordinates only, shape `[60, 2]`
-- Test-time inputs:
-  - `camera`
-  - `sdc_history_feature`
-- Inputs intentionally not used in Phase 3:
-  - `depth`
-  - `semantic_label`
-  - `driving_command`
-- Submission output:
-  - predicted XY coordinates for 60 future steps
-
-## Repo Structure for This Phase
-
-- Notebook entry point: `notebooks/phase3/DLAV_Phase3.ipynb`
-- Starter reference notebook: `notebooks/starter/DLAV_Phase3_starter_reference.ipynb`
-- Phase code: `src/phase3/`
-  - `dataset.py`
-  - `augmentations.py`
-  - `model.py`
-  - `train.py`
-  - `submission.py`
-- Shared infrastructure:
-  - `src/shared/project_setup.py`
-  - `src/shared/run_utils.py`
-  - `src/shared/training_setup.py`
-  - `src/shared/data_utils.py`
+- Training and validation inputs: `camera`, `sdc_history_feature`
+- Target source: `sdc_future_feature`
+- Optimized target in this repo: XY coordinates only, shape `[60, 2]`
+- Inference inputs: `camera`, `sdc_history_feature`
+- Not used in Phase 3: `depth`, `semantic_label`, `driving_command`
+- Submission output: 60 future XY coordinates
 
 ## Implemented Model
 
-- `phase3_resnet18`: pretrained ResNet18 camera backbone, MLP history encoder, fusion MLP, and a `[60, 2]` trajectory head
+| Model | Notes |
+| --- | --- |
+| `phase3_resnet18` | Pretrained ResNet18 camera backbone, history MLP, fusion MLP, XY trajectory head |
 
-## Recommended Default Config
+## Best Observed Validation Result / Recommended Default
+
+Best observed validation ADE: `1.7429`
+
+Recommended notebook defaults:
 
 - `MODEL_NAME = 'phase3_resnet18'`
-- `NUM_EPOCHS = 100`
 - `BATCH_SIZE = 32`
-- `LR = 1e-3`
+- `NUM_EPOCHS = 120`
+- `LR = 7e-4`
 - `WEIGHT_DECAY = 1e-4`
 - `REAL_TRAIN_COUNT = 500`
 - `USE_AUGMENTATION = True`
+- `AUGMENTATION_STRENGTH = 0.6`
 - `PRETRAINED = True`
 - `BACKBONE_LR_SCALE = 0.1`
-- `BACKBONE_WARMUP_EPOCHS = 2`
-- `SCHEDULER_PATIENCE = 6`
-- `EARLY_STOPPING_PATIENCE = 25`
+- `BACKBONE_WARMUP_EPOCHS = 3`
+- `RELOAD_BEST_CHECKPOINT_FOR_INFERENCE = True`
 
-## Training Instructions
+This setup is preferred because the pretrained ResNet18 backbone gives strong image features from the start, mixing labeled real samples directly targets the sim-to-real gap, and photometric augmentation improves robustness without changing trajectory geometry. Restricting the objective to XY also keeps training, validation, and submission perfectly aligned.
+
+## How to Train
 
 1. Open [DLAV_Phase3.ipynb](DLAV_Phase3.ipynb).
-2. Edit the configuration cell at the top of the notebook.
-3. The main variables to check are:
-   - `REAL_TRAIN_COUNT`
-   - `USE_AUGMENTATION`
-   - `AUGMENTATION_STRENGTH`
-   - `PRETRAINED`
-   - `BATCH_SIZE`
-   - `NUM_EPOCHS`
-   - `RELOAD_BEST_CHECKPOINT_FOR_INFERENCE`
-4. Run the notebook from top to bottom.
+2. Edit the top configuration cell. The main knobs are `REAL_TRAIN_COUNT`, `USE_AUGMENTATION`, `AUGMENTATION_STRENGTH`, `PRETRAINED`, `BATCH_SIZE`, `NUM_EPOCHS`, and `RELOAD_BEST_CHECKPOINT_FOR_INFERENCE`.
+3. Run the notebook from top to bottom.
 
-The notebook handles environment setup, dataset download, randomized real-data splitting, training, validation, checkpoint selection by `val_ADE`, checkpoint reload, and submission generation.
+The notebook handles setup, dataset download, randomized real-data splitting, training, validation, checkpoint selection by `val_ADE`, checkpoint reload, and submission generation.
 
-## Inference and Submission Instructions
+## How to Reload / Infer / Submit
 
-1. Use the same notebook after training.
-2. Keep `RELOAD_BEST_CHECKPOINT_FOR_INFERENCE = True` if you want inference and submission to use the checkpoint selected by validation ADE.
-3. Run the reload/validation cell and then the submission cell.
+1. Keep `RELOAD_BEST_CHECKPOINT_FOR_INFERENCE = True` to reload the best checkpoint selected by validation ADE.
+2. Run the reload/validation cell.
+3. Run the submission cell to generate `submission_phase3.csv`.
 
-Important Phase 3 behavior:
+The submission contains `id, x_1, y_1, ..., x_60, y_60`. Only XY trajectory coordinates are optimized and submitted.
 
-- Only XY targets are optimized and evaluated.
-- Validation loss is computed on XY only, matching training.
-- The Kaggle CSV contains `id, x_1, y_1, ..., x_60, y_60`.
+## Outputs
 
-## Public Test Size
-
-- The current Kaggle public test set contains 864 samples in `test_public_real/`.
-- The notebook keeps `EXPECTED_PUBLIC_TEST_SAMPLES = None` by default and then uses `len(public_test_files)` automatically.
-- With the current official public test set, the expected submission shape is `(864, 121)`.
-- Files are read in numeric filename order: `0.pkl, 1.pkl, ..., 863.pkl`.
-- Submission generation uses only `test_public_real/`, while validation continues to use the remaining `val_real/` split.
-
-## First Baseline Run
-
-Recorded baseline run:
-
-- Run folder:
-  - `outputs/runs/phase3/20260513_175542_phase3_resnet18_realmix500_pretrained_aug0.5_plateau_wd0.0001/`
-- Model:
-  - `phase3_resnet18`
-- Main config:
-  - `NUM_EPOCHS = 100`
-  - `BATCH_SIZE = 32`
-  - `TEST_BATCH_SIZE = 250`
-  - `LR = 1e-3`
-  - `WEIGHT_DECAY = 1e-4`
-  - `REAL_TRAIN_COUNT = 500`
-  - `SEED = 42`
-  - `USE_AUGMENTATION = True`
-  - `AUGMENTATION_STRENGTH = 0.5`
-  - `PRETRAINED = True`
-  - `BACKBONE_LR_SCALE = 0.1`
-  - `BACKBONE_WARMUP_EPOCHS = 2`
-  - `USE_LR_SCHEDULER = True`
-  - `SCHEDULER_NAME = 'plateau'`
-  - `SCHEDULER_METRIC = 'val_ADE'`
-  - `SCHEDULER_FACTOR = 0.5`
-  - `SCHEDULER_PATIENCE = 6`
-  - `SCHEDULER_MIN_LR = 1e-5`
-  - `EARLY_STOPPING_PATIENCE = 25`
-  - `EARLY_STOPPING_MIN_DELTA = 1e-3`
-  - `RELOAD_BEST_CHECKPOINT_FOR_INFERENCE = True`
-- Observed result from the copied training log/config:
-  - best validation ADE: `1.8018`
-  - best epoch: `53`
-  - FDE at best epoch: `4.9923`
-  - early stopping triggered at epoch `78`
-
-Interpretation:
-
-- This is a solid first Phase 3 baseline.
-- It is very close to the first important threshold of `ADE < 1.8`, but it is not there yet.
-- It is still behind the stronger reported validation range around `1.4-1.5`.
-- The model appears to fit the mixed training set well and then plateau on real validation, so simply training longer is unlikely to be enough.
-- The next improvements should target better generalization rather than more of the same optimization.
-
-## Useful Lessons From Accessible Phase 1 Results
-
-The local `result_colab/phase1/` folder is accessible from this environment, so it can be used for guidance.
-
-Most useful accessible Phase 1 signal:
-
-- Best accessible Phase 1 run:
-  - `20260426_163601_model_b_v2_resnet18_pretrained_warmup2_higher_lr`
-- Best accessible validation ADE:
-  - `1.6783`
-- Model:
-  - `model_b_v2`
-- Batch size:
-  - `32`
-- Learning rate:
-  - `7e-4`
-- Weight decay:
-  - `1e-4`
-- Scheduler:
-  - `plateau` on `val_ADE`
-- Backbone warmup:
-  - `2` epochs, with the backbone frozen for the first two epochs according to the run log
-
-What seems transferable to Phase 3:
-
-- A pretrained ResNet18 backbone plus a lower LR than `1e-3` is a credible direction.
-- `weight_decay = 1e-4` remains a reasonable default.
-- `ReduceLROnPlateau` helped the best Phase 1 run improve late in training after several LR drops.
-- Short backbone warmup is still sensible when fine-tuning a pretrained backbone.
-- If the checkpoint shapes are compatible, initializing Phase 3 from a strong Phase 1 or Phase 2 trajectory model is a worthwhile transfer-learning experiment.
-
-## Output Locations
-
-- Run directory: `outputs/runs/phase3/<timestamp>_<run_name>/`
-- Best checkpoint inside the run: `model.pth`
-- Last-epoch checkpoint inside the run: `model_last.pth`
+- Run folder: `outputs/runs/phase3/<timestamp>_<run_name>/`
+- Best checkpoint: `model.pth`
+- Last checkpoint: `model_last.pth`
+- Run submission: `outputs/runs/phase3/<timestamp>_<run_name>/submission_phase3.csv`
 - Legacy checkpoint copy: `outputs/checkpoints/phase3/phase3_model.pth`
-- Run-scoped submission: `outputs/runs/phase3/<timestamp>_<run_name>/submission_phase3.csv`
 - Legacy submission copy: `outputs/submissions/phase3/submission_phase3.csv`
 
-## Notes / Assumptions
+## Notes
 
-- The implementation expects `camera` to be stored as `[H, W, 3]`.
-- The implementation expects `sdc_history_feature` to have shape `[21, 3]`.
-- The implementation expects `sdc_future_feature` to have shape `[60, 3]` or `[60, >=2]`, and keeps only XY.
-- Augmentations are photometric only by default so future labels stay geometrically consistent.
+- The notebook keeps `EXPECTED_PUBLIC_TEST_SAMPLES = None` and infers the public test size automatically.
