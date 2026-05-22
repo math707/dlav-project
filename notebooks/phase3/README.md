@@ -22,47 +22,37 @@ Generalize from simulation to real data. Training mixes synthetic `train/` sampl
 | --- | --- |
 | `phase3_resnet18` | Pretrained ResNet18 camera backbone, history MLP, fusion MLP, XY trajectory head |
 
-## Best Observed Validation Result / Recommended Default
+## Current Best Kaggle Setup / Recommended Default
 
-Best observed validation ADE: `1.7429`
+Current recommended mode: `TRAINING_MODE = 'legacy_one_stage'`
 
-Best known Kaggle public score from the runs documented locally: approximately `1.56` from
-`20260515_090908_phase3_resnet18_realmix500_pretrained_aug0.6_plateau_wd0.0001`.
-The later `520`-real run did not improve the public score (`1.57` reported) despite using more real-data mixing.
+Best known Kaggle public score: approximately `1.35`
 
-Recommended notebook defaults:
+Main parameters to display in the notebook config:
 
 - `MODEL_NAME = 'phase3_resnet18'`
+- `TRAINING_MODE = 'legacy_one_stage'`
 - `BATCH_SIZE = 32`
+- `TEST_BATCH_SIZE = 250`
 - `NUM_EPOCHS = 120`
 - `LR = 7e-4`
 - `WEIGHT_DECAY = 1e-4`
-- `REAL_TRAIN_COUNT = 500`
+- `REAL_TRAIN_COUNT = 800`
 - `USE_AUGMENTATION = True`
-- `AUGMENTATION_STRENGTH = 0.6`
+- `AUGMENTATION_STRENGTH = 0.65`
 - `PRETRAINED = True`
 - `BACKBONE_LR_SCALE = 0.1`
 - `BACKBONE_WARMUP_EPOCHS = 3`
+- `EARLY_STOPPING_PATIENCE = 20`
 - `RELOAD_BEST_CHECKPOINT_FOR_INFERENCE = True`
+- `EXPECTED_PUBLIC_TEST_SAMPLES = None`
 
-Recommended two-stage experiment defaults:
-
-- `TRAINING_MODE = 'two_stage'`
-- `REAL_TRAIN_COUNT_STAGE1 = 700`
-- Stage 1: `STAGE1_LR = 5e-4`, `STAGE1_AUGMENTATION_STRENGTH = 0.6`, `STAGE1_NUM_EPOCHS = 100`, `STAGE1_EARLY_STOPPING_PATIENCE = 18`
-- Stage 2: `STAGE2_LR = 1e-4`, `STAGE2_AUGMENTATION_STRENGTH = 0.0`, `STAGE2_NUM_EPOCHS = 20`, `STAGE2_EARLY_STOPPING_PATIENCE = 8`
-- `TOP_K_CHECKPOINTS = 5`
-- `GENERATE_LAST_CHECKPOINT_SUBMISSION = True`
-- `GENERATE_TOP_K_SUBMISSIONS = True`
-- `GENERATE_ENSEMBLE_SUBMISSION = True`
-- `ENSEMBLE_CHECKPOINT_LIMIT = 3`
-
-This setup is preferred because the pretrained ResNet18 backbone gives strong image features from the start, mixing labeled real samples directly targets the sim-to-real gap, and photometric augmentation improves robustness without changing trajectory geometry. Restricting the objective to XY also keeps training, validation, and submission perfectly aligned.
+`legacy_one_stage` reproduces the older one-stage behavior and is currently the best setup for Kaggle. `one_stage` and `two_stage` remain available for experimentation, but `two_stage` is not the recommended setup at the moment because it underperformed in our tests. The public test size is inferred automatically from `len(public_test_files)` and is currently `864`.
 
 ## How to Train
 
 1. Open [DLAV_Phase3.ipynb](DLAV_Phase3.ipynb).
-2. Edit the top configuration cell. Start with `TRAINING_MODE`, then adjust `REAL_TRAIN_COUNT`, `USE_AUGMENTATION`, `AUGMENTATION_STRENGTH`, `PRETRAINED`, `BATCH_SIZE`, `NUM_EPOCHS`, and `RELOAD_BEST_CHECKPOINT_FOR_INFERENCE`.
+2. Edit the top configuration cell. For the current best setup, start with `TRAINING_MODE = 'legacy_one_stage'`, then adjust `REAL_TRAIN_COUNT`, `USE_AUGMENTATION`, `AUGMENTATION_STRENGTH`, `PRETRAINED`, `BATCH_SIZE`, `NUM_EPOCHS`, and `RELOAD_BEST_CHECKPOINT_FOR_INFERENCE`.
 3. Run the notebook from top to bottom.
 
 The notebook handles setup, dataset download, randomized real-data splitting, one-stage or two-stage training, validation, checkpoint selection by `val_ADE`, checkpoint reload, and submission generation.
@@ -71,21 +61,7 @@ The notebook handles setup, dataset download, randomized real-data splitting, on
 
 - `TRAINING_MODE = 'legacy_one_stage'` reproduces the pre-two-stage notebook flow as closely as possible. It uses the direct one-stage `train(...)` call, keeps the original mixed-train / held-out-real validation behavior, saves the best and last checkpoints, and only generates the primary submission CSV by default.
 - `TRAINING_MODE = 'one_stage'` keeps one-stage training on the mixed split but uses the newer notebook plumbing, including optional top-k checkpoint saving and extra submission variants.
-- `TRAINING_MODE = 'two_stage'` runs mixed Stage 1 and real-only Stage 2 fine-tuning.
-
-To rerun the strongest old-style setup documented locally, use:
-
-- `TRAINING_MODE = 'legacy_one_stage'`
-- `REAL_TRAIN_COUNT = 500`
-- `LR = 7e-4`
-- `AUGMENTATION_STRENGTH = 0.6`
-- `NUM_EPOCHS = 120`
-- `WEIGHT_DECAY = 1e-4`
-- `BACKBONE_WARMUP_EPOCHS = 3`
-- `SCHEDULER_NAME = 'plateau'`
-- `SCHEDULER_PATIENCE = 6`
-- `EARLY_STOPPING_PATIENCE = 25`
-- `SEED = 42`
+- `TRAINING_MODE = 'two_stage'` runs mixed Stage 1 and real-only Stage 2 fine-tuning. It is currently experimental rather than the recommended best setup.
 
 Optional experiment infrastructure:
 
@@ -103,6 +79,7 @@ In `legacy_one_stage` mode, the notebook deliberately falls back to the old beha
 - Stage 2 reloads the best Stage 1 checkpoint and fine-tunes on the same `real_train` split only.
 - Validation stays on the held-out `real_val` split for both stages.
 - Inference still uses only `camera` and `sdc_history_feature`.
+- This mode is kept for experimentation and is not the current recommended best setup.
 
 ## How to Reload / Infer / Submit
 
@@ -123,4 +100,4 @@ The submission contains `id, x_1, y_1, ..., x_60, y_60`. Only XY trajectory coor
 
 ## Notes
 
-- The notebook keeps `EXPECTED_PUBLIC_TEST_SAMPLES = None` and infers the public test size automatically.
+- The notebook keeps `EXPECTED_PUBLIC_TEST_SAMPLES = None` and infers the public test size automatically. The current public test set contains `864` samples.
