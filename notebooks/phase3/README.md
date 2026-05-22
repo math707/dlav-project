@@ -47,7 +47,7 @@ Recommended notebook defaults:
 
 Recommended two-stage experiment defaults:
 
-- `USE_TWO_STAGE_TRAINING = True`
+- `TRAINING_MODE = 'two_stage'`
 - `REAL_TRAIN_COUNT_STAGE1 = 700`
 - Stage 1: `STAGE1_LR = 5e-4`, `STAGE1_AUGMENTATION_STRENGTH = 0.6`, `STAGE1_NUM_EPOCHS = 100`, `STAGE1_EARLY_STOPPING_PATIENCE = 18`
 - Stage 2: `STAGE2_LR = 1e-4`, `STAGE2_AUGMENTATION_STRENGTH = 0.0`, `STAGE2_NUM_EPOCHS = 20`, `STAGE2_EARLY_STOPPING_PATIENCE = 8`
@@ -62,10 +62,30 @@ This setup is preferred because the pretrained ResNet18 backbone gives strong im
 ## How to Train
 
 1. Open [DLAV_Phase3.ipynb](DLAV_Phase3.ipynb).
-2. Edit the top configuration cell. The main knobs are `REAL_TRAIN_COUNT`, `USE_AUGMENTATION`, `AUGMENTATION_STRENGTH`, `PRETRAINED`, `BATCH_SIZE`, `NUM_EPOCHS`, and `RELOAD_BEST_CHECKPOINT_FOR_INFERENCE`.
+2. Edit the top configuration cell. Start with `TRAINING_MODE`, then adjust `REAL_TRAIN_COUNT`, `USE_AUGMENTATION`, `AUGMENTATION_STRENGTH`, `PRETRAINED`, `BATCH_SIZE`, `NUM_EPOCHS`, and `RELOAD_BEST_CHECKPOINT_FOR_INFERENCE`.
 3. Run the notebook from top to bottom.
 
 The notebook handles setup, dataset download, randomized real-data splitting, one-stage or two-stage training, validation, checkpoint selection by `val_ADE`, checkpoint reload, and submission generation.
+
+## Training Modes
+
+- `TRAINING_MODE = 'legacy_one_stage'` reproduces the pre-two-stage notebook flow as closely as possible. It uses the direct one-stage `train(...)` call, keeps the original mixed-train / held-out-real validation behavior, saves the best and last checkpoints, and only generates the primary submission CSV by default.
+- `TRAINING_MODE = 'one_stage'` keeps one-stage training on the mixed split but uses the newer notebook plumbing, including optional top-k checkpoint saving and extra submission variants.
+- `TRAINING_MODE = 'two_stage'` runs mixed Stage 1 and real-only Stage 2 fine-tuning.
+
+To rerun the strongest old-style setup documented locally, use:
+
+- `TRAINING_MODE = 'legacy_one_stage'`
+- `REAL_TRAIN_COUNT = 500`
+- `LR = 7e-4`
+- `AUGMENTATION_STRENGTH = 0.6`
+- `NUM_EPOCHS = 120`
+- `WEIGHT_DECAY = 1e-4`
+- `BACKBONE_WARMUP_EPOCHS = 3`
+- `SCHEDULER_NAME = 'plateau'`
+- `SCHEDULER_PATIENCE = 6`
+- `EARLY_STOPPING_PATIENCE = 25`
+- `SEED = 42`
 
 Optional experiment infrastructure:
 
@@ -74,6 +94,8 @@ Optional experiment infrastructure:
 - `GENERATE_TOP_K_SUBMISSIONS` writes separate CSVs for the saved top-k checkpoints.
 - `GENERATE_ENSEMBLE_SUBMISSION` averages multiple checkpoint predictions into one extra CSV.
 - `ENSEMBLE_CHECKPOINT_LIMIT` chooses how many of the saved top-k checkpoints are averaged for the ensemble CSV.
+
+In `legacy_one_stage` mode, the notebook deliberately falls back to the old behavior: top-k checkpointing is reduced to `1`, and the extra last/top-k/ensemble submission variants are skipped.
 
 ## Two-Stage Training
 
