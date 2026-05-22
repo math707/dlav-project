@@ -52,6 +52,50 @@ def _get_future_xy(future):
     return future[..., :2]
 
 
+def _build_top_k_checkpoint_path(best_checkpoint_path: Path, epoch: int) -> Path:
+    return best_checkpoint_path.with_name(
+        f'{best_checkpoint_path.stem}_topk_epoch{epoch:03d}{best_checkpoint_path.suffix}'
+    )
+
+
+def _update_top_k_checkpoints(
+    model,
+    top_k_records,
+    epoch_metrics,
+    *,
+    best_checkpoint_path: Path | None,
+    top_k_checkpoints: int,
+):
+    if best_checkpoint_path is None or top_k_checkpoints <= 1:
+        return top_k_records
+
+    candidate_val_ade = epoch_metrics['val_ADE']
+    if len(top_k_records) >= top_k_checkpoints and candidate_val_ade >= top_k_records[-1]['val_ADE']:
+        return top_k_records
+
+    checkpoint_path = _build_top_k_checkpoint_path(best_checkpoint_path, epoch_metrics['epoch'])
+    torch.save(model.state_dict(), checkpoint_path)
+    updated_records = [
+        *top_k_records,
+        {
+            'epoch': epoch_metrics['epoch'],
+            'val_ADE': epoch_metrics['val_ADE'],
+            'val_FDE': epoch_metrics['val_FDE'],
+            'val_loss': epoch_metrics['val_loss'],
+            'checkpoint_path': str(checkpoint_path),
+        },
+    ]
+    updated_records.sort(key=lambda record: (record['val_ADE'], record['epoch']))
+
+    while len(updated_records) > top_k_checkpoints:
+        removed_record = updated_records.pop(-1)
+        removed_path = Path(removed_record['checkpoint_path'])
+        if removed_path.exists():
+            removed_path.unlink()
+
+    return updated_records
+
+
 def validate(model, val_loader, *, device=None):
     device = device or torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = model.to(device)
@@ -101,6 +145,7 @@ def train(
     scheduler_metric: str = 'val_ADE',
     best_checkpoint_path=None,
     last_checkpoint_path=None,
+    top_k_checkpoints: int = 1,
     early_stopping_patience: int | None = None,
     early_stopping_min_delta: float = 0.0,
     backbone_warmup_epochs: int = 0,
@@ -117,6 +162,7 @@ def train(
     stopped_early = False
     best_checkpoint_path = Path(best_checkpoint_path) if best_checkpoint_path is not None else None
     last_checkpoint_path = Path(last_checkpoint_path) if last_checkpoint_path is not None else None
+    top_k_checkpoint_records = []
 
     if best_checkpoint_path is not None:
         best_checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
@@ -173,6 +219,14 @@ def train(
             if best_checkpoint_path is not None:
                 torch.save(model.state_dict(), best_checkpoint_path)
                 best_metrics['checkpoint_path'] = str(best_checkpoint_path)
+
+        top_k_checkpoint_records = _update_top_k_checkpoints(
+            model,
+            top_k_checkpoint_records,
+            epoch_metrics,
+            best_checkpoint_path=best_checkpoint_path,
+            top_k_checkpoints=top_k_checkpoints,
+        )
 
         if last_checkpoint_path is not None:
             torch.save(model.state_dict(), last_checkpoint_path)
@@ -244,6 +298,7 @@ def train(
         best_val_ADE_epoch=best_metrics.get('epoch'),
         best_checkpoint_path=best_metrics.get('checkpoint_path'),
         last_checkpoint_path=str(last_checkpoint_path) if last_checkpoint_path is not None else None,
+        top_k_checkpoint_paths=[record['checkpoint_path'] for record in top_k_checkpoint_records],
         early_stopping_enabled=early_stopping_enabled,
         early_stopping_patience=early_stopping_patience,
         early_stopping_min_delta=early_stopping_min_delta,
@@ -263,4 +318,7 @@ def train(
         'backbone_warmup_enabled': backbone_warmup_enabled,
         'best_checkpoint_path': str(best_checkpoint_path) if best_checkpoint_path is not None else None,
         'last_checkpoint_path': str(last_checkpoint_path) if last_checkpoint_path is not None else None,
+        'top_k_checkpoints': top_k_checkpoints,
+        'top_k_checkpoint_paths': [record['checkpoint_path'] for record in top_k_checkpoint_records],
+        'top_k_checkpoint_records': top_k_checkpoint_records,
     }

@@ -44,6 +44,7 @@ outputs/runs/phase2/*
 outputs/runs/phase3/*
 !outputs/runs/phase3/.gitkeep
 outputs/tmp_*
+smoke_phase3_tmp/
 outputs/torch_cache/
 outputs/channel_order_audit.png
 
